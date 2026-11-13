@@ -32,6 +32,27 @@ namespace CrunchDrives
         public const string StatusStandby = "Standby";
         public const string ActionPrimary = "Crunch Field";
         public const string ModuleInfo = "Generates a Casimir-compressed gravity field in front of the craft. Range and compression depend on the power level and target.";
+
+        // The drive's performance numbers, as listed in the part's info in the VAB/SPH (the same place a stock engine lists its thrust and propellants).
+        public static string ModuleInfoStats(DriveStats s, double ecPerSecond, double drawMinEc, double drawMaxEc)
+        {
+            return string.Format(
+                "\n\n<b>Crunch Coefficient:</b> {0:G3}c to {1:G3}c\n" +
+                "<b>Charge Time:</b> {2} to {3}\n" +
+                "<b>Power Draw:</b> {4:N0} EC per charge second ({5:N0} to {6:N0} EC/s)\n" +
+                "<b>Full Charge Cost:</b> {7:N0} EC\n" +
+                "<b>Ramp Time:</b> {8:F1} s\n" +
+                "<b>Aim Tolerance:</b> {9:F1} degrees\n" +
+                "<b>Capture Limit:</b> {10:P1} of escape speed, periapsis {11} above the surface",
+                s.MinSpeedC, s.MaxSpeedC,
+                FormatDuration(s.MinSpoolSeconds), FormatDuration(s.MaxSpoolSeconds),
+                ecPerSecond, drawMinEc, drawMaxEc,
+                ecPerSecond * s.MaxSpoolSeconds,
+                s.RampSeconds,
+                s.TargetAlignToleranceDeg,
+                s.CaptureSpeedFraction, FormatDistance(s.CaptureSafeAltitude));
+        }
+
         public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
 
         public static string FieldCoefficientValue(double tierC) { return string.Format("{0:G3}c", tierC); }

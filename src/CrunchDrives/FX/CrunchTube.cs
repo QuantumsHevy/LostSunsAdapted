@@ -18,10 +18,12 @@ namespace CrunchDrives
     // Its size is measured from the craft's meshes at the start of each spool. Everything is built in code.
     //
     // Assumes the ring's axis is the part's local Y axis and the part's origin is the centre of the ring along it.
+    // The tube's profile is an ellipse (radius = R x sqrt(1 - u^2), u = 0 at the ring and 1 at the tip).
     public class CrunchTube
     {
         const int CornerCount = 8;
         const int MaxMeshVertices = 60000;   // A mesh holds 65535 vertices with the default 16-bit indices; the halo is thinned to fit.
+        const float EndMargin = 1f;          // Each end of the tube reaches at least this far (m) past the craft's outermost point.
 
         // One corner of one mesh's bounding box, measured from the ring: how far along the axis, and how far from it.
         struct ScanCorner
@@ -245,8 +247,7 @@ namespace CrunchDrives
 
             // The curve of the tube pulls in toward its tips, so a wide part far from the ring needs a longer tube to stay inside it.
             float ringR = Mathf.Max(0.5f, scanRingRadius * (float)CrunchTuning.TubeRadiusFactor);
-            float shape = Mathf.Max(1f, (float)CrunchTuning.TubeShapeExponent);   // Below 1 would curve the tube inward, so 1 (a straight cone) is the lowest.
-            float fitMax = Mathf.Max(1.1f, (float)CrunchTuning.TubeFitMaxFactor);
+            float fitMax = (float)CrunchTuning.TubeFitMaxFactor;
 
             float needForward = 0f;    // Length the tube needs for the craft to fit inside its curve, each side.
             float needBackward = 0f;
@@ -259,12 +260,12 @@ namespace CrunchDrives
                 bool capped = false;
                 if (c.along > 0f)
                 {
-                    float need = RequiredLength(c.along, c.radial, ringR, shape, fitMax, out capped);
+                    float need = RequiredLength(c.along, c.radial, ringR, fitMax, out capped);
                     if (need > needForward) { needForward = need; forwardPart = scanParts[c.part]; forwardAlong = c.along; forwardRadial = c.radial; }
                 }
                 else if (c.along < 0f)
                 {
-                    float need = RequiredLength(-c.along, c.radial, ringR, shape, fitMax, out capped);
+                    float need = RequiredLength(-c.along, c.radial, ringR, fitMax, out capped);
                     if (need > needBackward) { needBackward = need; backwardPart = scanParts[c.part]; backwardAlong = c.along; backwardRadial = c.radial; }
                 }
                 if (capped) poking++;
@@ -273,12 +274,11 @@ namespace CrunchDrives
             float maxAlong = scanMaxAlong;
             float minAlong = scanMinAlong;
             float craftLength = maxAlong - minAlong;
-            float extra = Mathf.Max(1f, craftLength * (float)CrunchTuning.TubeExtraLengthFraction);   // Beyond each end of the craft. The tube fades out over this stretch, starting exactly at the craft's outermost point.
 
             radius = ringR;
-            float minHalf = Mathf.Max(2f, scanRingRadius * 2f * (float)CrunchTuning.TubeMinHalfLengthRingDiameters);   // Each end is at least this long (a ring diameter), however small the craft, so the whole tube is at least twice that.
-            forward = Mathf.Max(minHalf, maxAlong + extra, needForward);
-            backward = Mathf.Max(minHalf, -minAlong + extra, needBackward);
+            float minHalf = Mathf.Max(2f, scanRingRadius * 2f);   // Each end is at least a ring diameter long, however small the craft.
+            forward = Mathf.Max(minHalf, maxAlong + EndMargin, needForward);
+            backward = Mathf.Max(minHalf, -minAlong + EndMargin, needBackward);
 
             // Both halves get the larger of the two lengths, so the tube looks the same whichever way the craft faces.
             float length = Mathf.Max(forward, backward);
@@ -289,11 +289,11 @@ namespace CrunchDrives
             // (the farther of the two craft ends), so the whole craft stays covered whichever way it faces.
             float solid = Mathf.Min(Mathf.Max(maxAlong, -minAlong), length * 0.95f);
 
-            int segments = Mathf.Max(8, CrunchTuning.TubeSegments);
+            int segments = CrunchTuning.TubeSegments;
             DestroyMesh(forwardFilter);
             DestroyMesh(backwardFilter);
-            forwardFilter.sharedMesh = BuildTube(radius, forward, solid, segments, 1f, shape);
-            backwardFilter.sharedMesh = BuildTube(radius, backward, solid, segments, -1f, shape);
+            forwardFilter.sharedMesh = BuildTube(radius, forward, solid, segments, 1f);
+            backwardFilter.sharedMesh = BuildTube(radius, backward, solid, segments, -1f);
             CacheColors(forwardFilter.sharedMesh, out forwardAlpha, out forwardWork);
             CacheColors(backwardFilter.sharedMesh, out backwardAlpha, out backwardWork);
 
@@ -397,7 +397,7 @@ namespace CrunchDrives
                 // Flicker: the whole tube and its light waver while the field is up. It dies away with the fade.
                 clock += dt;
                 float hz = (float)CrunchTuning.TubeFlickerHz;
-                float amount = Mathf.Clamp01((float)CrunchTuning.TubeFlickerAmount);
+                float amount = (float)CrunchTuning.TubeFlickerAmount;
                 float noise = Mathf.PerlinNoise(clock * hz, 0.37f) * 0.6f
                             + Mathf.PerlinNoise(clock * hz * 2.3f, 7.1f) * 0.4f;
                 float flicker = 1f - amount * (1f - noise);
@@ -430,8 +430,8 @@ namespace CrunchDrives
         float TickFlash(float dt)
         {
             if (flashClock < 0f) return 0f;
-            float rise = Mathf.Max(0f, (float)CrunchTuning.FlashRiseSeconds);
-            float fall = Mathf.Max(0.01f, (float)CrunchTuning.FlashFadeSeconds);
+            float rise = (float)CrunchTuning.FlashRiseSeconds;
+            float fall = (float)CrunchTuning.FlashFadeSeconds;
             flashClock += dt;
             if (flashClock >= rise + fall) { flashClock = -1f; return 0f; }
             flashAge = flashClock / (rise + fall);
@@ -627,33 +627,33 @@ namespace CrunchDrives
             return Mathf.Exp(-(d * d) / (k * k));
         }
 
-        // How long a tube of this shape must be for a point 'along' the axis and 'radial' from it to be inside it.
+        // How long a tube must be for a point 'along' the axis and 'radial' from it to be inside it.
         // The result is never more than maxFactor x 'along': a part much wider than the ring would otherwise ask for a tube
         // many times the craft's length, so it is left poking out of the tube instead (capped is true then).
-        public static float RequiredLength(float along, float radial, float ringRadius, float shape, float maxFactor, out bool capped, float margin = 1.05f)
+        public static float RequiredLength(float along, float radial, float ringRadius, float maxFactor, out bool capped, float margin = 1.05f)
         {
             capped = false;
             if (along <= 0f) return 0f;
             float ratio = Mathf.Min(radial / ringRadius, 0.98f);
-            float fit = Mathf.Pow(1f - Mathf.Pow(ratio, shape), 1f / shape);   // Share of the length at which the curve is as wide as the point.
+            float fit = Mathf.Sqrt(1f - ratio * ratio);   // Share of the length at which the ellipse is as wide as the point.
             float length = along / fit * margin;
             if (length > along * maxFactor) { capped = true; return along * maxFactor; }
             return length;
         }
 
-        // The tube's radius at u (0 at the ring, 1 at the tip) as a share of the ring's radius: widest at the ring, closing to a point.
-        public static float RadiusScale(float u, float shape)
+        // The tube's radius at u (0 at the ring, 1 at the tip) as a share of the ring's radius: an ellipse, widest at the ring, closing to a point.
+        public static float RadiusScale(float u)
         {
             u = Mathf.Clamp01(u);
-            return Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Pow(u, shape)), 1f / shape);
+            return Mathf.Sqrt(1f - u * u);
         }
 
         // One half of the tube, from the ring (y = 0) out to y = direction * length, drawn from both sides. The opacity is
         // carried in the vertex colours, so it fades out toward the tip. Wider, fainter copies of the tube (the halo)
         // blur its outline.
-        static Mesh BuildTube(float radius, float length, float solid, int segments, float direction, float shape)
+        static Mesh BuildTube(float radius, float length, float solid, int segments, float direction)
         {
-            int count = Mathf.Max(4, CrunchTuning.TubeRings);
+            int count = CrunchTuning.TubeRings;
             List<float> us = new List<float>();
             for (int i = 0; i <= count; i++)
             {
@@ -666,10 +666,9 @@ namespace CrunchDrives
             for (int i = us.Count - 1; i > 0; i--) if (us[i] - us[i - 1] < 0.0005f) us.RemoveAt(i);
 
             int ringVerts = segments + 1;
-            int shells = Mathf.Max(0, CrunchTuning.TubeHaloShells);
-            shells = Mathf.Min(shells, Mathf.Max(0, MaxMeshVertices / (us.Count * ringVerts) - 1));   // Keep the mesh within its vertex limit.
+            int shells = Mathf.Min(CrunchTuning.TubeHaloShells, Mathf.Max(0, MaxMeshVertices / (us.Count * ringVerts) - 1));   // Keep the mesh within its vertex limit.
             float spread = (float)CrunchTuning.TubeHaloSpread;
-            float edgeOpacity = Mathf.Clamp01((float)CrunchTuning.TubeHaloStrength);
+            float edgeOpacity = (float)CrunchTuning.TubeHaloStrength;
             float falloff = (float)CrunchTuning.TubeHaloFalloff;
 
             List<Vector3> verts = new List<Vector3>();
@@ -686,7 +685,7 @@ namespace CrunchDrives
                 for (int r = 0; r < us.Count; r++)
                 {
                     float y = length * us[r];
-                    float rad = radius * widen * RadiusScale(us[r], shape);
+                    float rad = radius * widen * RadiusScale(us[r]);
                     Color c = new Color(1f, 1f, 1f, EndAlpha(y, solid, length) * fade);
                     for (int i = 0; i < ringVerts; i++)
                     {

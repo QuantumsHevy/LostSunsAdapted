@@ -6,8 +6,8 @@ namespace CrunchDrives
 {
     // The crunch drive as a part. It holds no crunch logic of its own: its presence on the craft is what permits a
     // crunch (see CrunchController.HasDrive), its right-click menu is the player's control panel, and it plays the
-    // sound cues. The first drive on the active craft is the "primary" one; it owns the settings and the cues, and
-    // any further drive just shows standby.
+    // sound cues. The first drive on the active craft is the "primary" one; it owns the settings, the cues and the
+    // performance stats (see Stats), and any further drive just shows standby.
     public class ModuleCrunchDrive : PartModule
     {
         const string MainGroup = "CrunchDrive";
@@ -20,6 +20,49 @@ namespace CrunchDrives
         const string FxEngage = "crunchEngage";      // One-shot when a crunch field forms.
         const string FxField = "crunchField";        // Loop while a crunch field is up.
         const string FxCollapse = "crunchCollapse";  // One-shot when a crunch field collapses.
+
+        // ---- Part stats (set in the part's cfg; missing or 0 = the CrunchTuning default of the same name) ----
+        // Only the primary drive's stats count; the controller takes a copy when a spool starts.
+
+        [KSPField(isPersistant = false)] public double minSpeedC = 0.0;                // Average speed (c) of the shortest spool.
+        [KSPField(isPersistant = false)] public double maxSpeedC = 0.0;                // Average speed (c) of a full spool, and the cap on the peak speed of any crunch.
+        [KSPField(isPersistant = false)] public double rampSeconds = 0.0;              // Ramp-up and ramp-down duration of every crunch.
+        [KSPField(isPersistant = false)] public double spoolEcPerSecond = 0.0;         // Charge one spool second costs, and the draw a new part starts at.
+        [KSPField(isPersistant = false)] public double spoolRateMinEc = 0.0;           // Lowest draw (EC/s) the player can set.
+        [KSPField(isPersistant = false)] public double spoolRateMaxEc = 0.0;           // Highest draw (EC/s) the player can set.
+        [KSPField(isPersistant = false)] public double spoolRateStepEc = 0.0;          // Step of the draw setting (EC/s).
+        [KSPField(isPersistant = false)] public double minSpoolSeconds = 0.0;          // Shortest spool: the crunch can be engaged after this long.
+        [KSPField(isPersistant = false)] public double maxSpoolSeconds = 0.0;          // A full spool: gives maxSpeedC and ends by itself.
+        [KSPField(isPersistant = false)] public double glowSpoolSeconds = 0.0;         // The emissive glow reaches full this many spool seconds after the spool starts.
+        [KSPField(isPersistant = false)] public double targetAlignToleranceDeg = 0.0;  // How far off the target the craft may be when a crunch starts.
+        [KSPField(isPersistant = false)] public double minCrunchSeconds = 0.0;         // No leg is shorter than this.
+        [KSPField(isPersistant = false)] public double captureSpeedFraction = 0.0;     // Capture assistance slows the craft to at most this x local escape speed.
+        [KSPField(isPersistant = false)] public double captureSafeAltitude = 0.0;      // Capture assistance keeps periapsis at least this far above the surface/atmosphere (m).
+
+        // The numbers the controller works with: the cfg value where one is set, otherwise the CrunchTuning default.
+        public DriveStats Stats
+        {
+            get
+            {
+                DriveStats s = DriveStats.Defaults;
+                if (minSpeedC > 0.0) s.MinSpeedC = minSpeedC;
+                if (maxSpeedC > 0.0) s.MaxSpeedC = maxSpeedC;
+                if (rampSeconds > 0.0) s.RampSeconds = rampSeconds;
+                if (minSpoolSeconds > 0.0) s.MinSpoolSeconds = minSpoolSeconds;
+                if (maxSpoolSeconds > 0.0) s.MaxSpoolSeconds = maxSpoolSeconds;
+                if (glowSpoolSeconds > 0.0) s.GlowSpoolSeconds = glowSpoolSeconds;
+                if (targetAlignToleranceDeg > 0.0) s.TargetAlignToleranceDeg = targetAlignToleranceDeg;
+                if (minCrunchSeconds > 0.0) s.MinCrunchSeconds = minCrunchSeconds;
+                if (captureSpeedFraction > 0.0) s.CaptureSpeedFraction = captureSpeedFraction;
+                if (captureSafeAltitude > 0.0) s.CaptureSafeAltitude = captureSafeAltitude;
+                return s;
+            }
+        }
+
+        public double SpoolEcPerSecond { get { return spoolEcPerSecond > 0.0 ? spoolEcPerSecond : CrunchTuning.SpoolEcPerSecond; } }
+        public double SpoolRateMinEc { get { return spoolRateMinEc > 0.0 ? spoolRateMinEc : CrunchTuning.SpoolRateMinEc; } }
+        public double SpoolRateMaxEc { get { return spoolRateMaxEc > 0.0 ? spoolRateMaxEc : CrunchTuning.SpoolRateMaxEc; } }
+        public double SpoolRateStepEc { get { return spoolRateStepEc > 0.0 ? spoolRateStepEc : CrunchTuning.SpoolRateStepEc; } }
 
         // ---- Readouts: crunch field ----
 
@@ -101,21 +144,16 @@ namespace CrunchDrives
 
         // Electric charge per second the spool draws, set by the player in the VAB/SPH or in flight (before and during a spool).
         // A higher draw reaches a given coefficient sooner and a lower one is easier on the craft's power, but one spool second always
-        // costs the same charge (SpoolEcPerSecond below), so a given coefficient costs the same total charge.
+        // costs the same charge (SpoolEcPerSecond above), so a given coefficient costs the same total charge. The slider's range is the
+        // CrunchTuning default here and is set from the part's own limits in OnStart.
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = CrunchText.FieldDraw, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle),
          UI_FloatRange(minValue = (float)CrunchTuning.SpoolRateMinEc, maxValue = (float)CrunchTuning.SpoolRateMaxEc, stepIncrement = (float)CrunchTuning.SpoolRateStepEc, scene = UI_Scene.All)]
         public float spoolDraw = 0f;   // 0 = not set yet: the first start uses the nominal rate.
 
-        // Charge one spool second costs, and the draw a new part starts at. Set it in the part's cfg (spoolEcPerSecond = ...); 0 uses CrunchTuning.SpoolEcPerSecond.
-        [KSPField(isPersistant = false)]
-        public double spoolEcPerSecond = 0.0;
-
-        public double SpoolEcPerSecond { get { return spoolEcPerSecond > 0.0 ? spoolEcPerSecond : CrunchTuning.SpoolEcPerSecond; } }
-
         // The draw the spool uses now.
         public double SpoolDrawRate
         {
-            get { return Math.Max(CrunchTuning.SpoolRateMinEc, Math.Min(CrunchTuning.SpoolRateMaxEc, spoolDraw > 0f ? spoolDraw : SpoolEcPerSecond)); }
+            get { return Math.Max(SpoolRateMinEc, Math.Min(SpoolRateMaxEc, spoolDraw > 0f ? spoolDraw : SpoolEcPerSecond)); }
         }
 
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldDropoutAltitude, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
@@ -215,6 +253,11 @@ namespace CrunchDrives
             // The mode names live in CrunchText, so they are handed to the selector here rather than in the attribute.
             SetOptions(Fields[nameof(travelMode)].uiControlEditor as UI_ChooseOption);
 
+            // The draw slider's limits are the part's own, which the attribute (a compile-time constant) cannot hold.
+            BaseField draw = Fields[nameof(spoolDraw)];
+            SetDrawRange(draw.uiControlEditor as UI_FloatRange);
+            SetDrawRange(draw.uiControlFlight as UI_FloatRange);
+
             if (spoolDraw <= 0f) spoolDraw = (float)SpoolDrawRate;   // A new part starts at its nominal draw.
 
             glowCollected = false;   // The glow materials are gathered on first use, once the part's meshes are set up.
@@ -235,6 +278,14 @@ namespace CrunchDrives
         static void SetOptions(UI_ChooseOption option)
         {
             if (option != null) option.options = CrunchText.ModeNames;
+        }
+
+        void SetDrawRange(UI_FloatRange range)
+        {
+            if (range == null) return;
+            range.minValue = (float)SpoolRateMinEc;
+            range.maxValue = (float)SpoolRateMaxEc;
+            range.stepIncrement = (float)SpoolRateStepEc;
         }
 
         public override void OnUpdate()
@@ -341,7 +392,8 @@ namespace CrunchDrives
         // mid-course turn counts as leaving the crunch: the glow fades while the craft turns and rises again with the second spool.
 
         // Finds every material on this part that has an emissive colour and takes a private copy of it, so only this part glows
-        // (the part's materials are shared with every other copy of it). The copies are made once and kept.
+        // (the part's materials are shared with every other copy of it). The copies are made once and kept. A part with no such
+        // material simply never glows.
         void CollectGlowMaterials()
         {
             ReleaseGlowMaterials();
@@ -575,7 +627,7 @@ namespace CrunchDrives
 
         public override string GetInfo()
         {
-            return CrunchText.ModuleInfo;
+            return CrunchText.ModuleInfo + CrunchText.ModuleInfoStats(Stats, SpoolEcPerSecond, SpoolRateMinEc, SpoolRateMaxEc);
         }
     }
 }

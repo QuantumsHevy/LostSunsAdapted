@@ -36,8 +36,8 @@ namespace CrunchDrives
 
         public static double SpoolElapsed { get { return instance != null && IsSpooling ? instance.spoolElapsed : 0.0; } }          // Game seconds since the spool started.
         public static double SpoolSecondsPaid { get { return instance != null && IsSpooling ? instance.spoolSeconds : 0.0; } }       // Spool seconds the drawn charge has paid for (what sets the coefficient).
-        public static double SpoolFraction { get { return instance != null && IsSpooling ? System.Math.Min(1.0, instance.spoolSeconds / CrunchTuning.GlowSpoolSeconds) : 0.0; } }   // 0..1, for the part's glow.
-        public static bool CanEngageFromSpool { get { return instance != null && instance.phase == CrunchPhase.Spooling && instance.spoolSeconds >= CrunchTuning.MinSpoolSeconds; } }   // The spool is long enough to engage now.
+        public static double SpoolFraction { get { return instance != null && IsSpooling ? System.Math.Min(1.0, instance.spoolSeconds / instance.stats.GlowSpoolSeconds) : 0.0; } }   // 0..1, for the part's glow.
+        public static bool CanEngageFromSpool { get { return instance != null && instance.phase == CrunchPhase.Spooling && instance.spoolSeconds >= instance.stats.MinSpoolSeconds; } }   // The spool is long enough to engage now.
 
         public static double LiveSpeedC { get { return instance != null && instance.phase == CrunchPhase.Crunching ? instance.activeTier * instance.CurveSpeedFactor() : 0.0; } }
         public static double LegElapsed { get { return instance != null ? instance.elapsed : 0.0; } }
@@ -48,12 +48,12 @@ namespace CrunchDrives
             get
             {
                 if (instance == null) return CrunchTuning.MinSpeedC;
-                if (IsSpooling) return SpoolTierFor(instance.spoolSeconds);   // What the spool has paid for so far.
+                if (IsSpooling) return instance.SpoolTierFor(instance.spoolSeconds);   // What the spool has paid for so far.
                 switch (instance.phase)
                 {
                     case CrunchPhase.Crunching: return instance.activeTier;
                     case CrunchPhase.Ready: return instance.spoolTier;
-                    default: return CrunchTuning.MinSpeedC;
+                    default: return instance.stats.MinSpeedC;
                 }
             }
         }
@@ -90,6 +90,10 @@ namespace CrunchDrives
         Vessel crunchVessel;
         Vector3d latchedHeading;    // Fixed for the whole crunch unless a target lock re-aims it.
         string lastBodyName;
+
+        // The primary drive's performance numbers. Idle, they follow the drive on the active craft (so the readouts show them);
+        // a spool takes a copy that the crunch and the arrival after it keep, even if the drive changes meanwhile.
+        DriveStats stats = DriveStats.Defaults;
 
         ITargetable lockedTarget;   // Target the crunch is homing on, if any.
         bool targetLocked;
@@ -170,9 +174,16 @@ namespace CrunchDrives
 
         // ---- Power and spool ----
 
-        static double RampFor(double duration)
+        // The primary drive's numbers on this craft (the CrunchTuning defaults when it has no drive).
+        static DriveStats StatsFor(Vessel v)
         {
-            return CrunchMath.RampFraction(duration, CrunchTuning.RampSeconds);
+            ModuleCrunchDrive drive = ModuleCrunchDrive.PrimaryFor(v);
+            return drive != null ? drive.Stats : DriveStats.Defaults;
+        }
+
+        double RampFor(double duration)
+        {
+            return CrunchMath.RampFraction(duration, stats.RampSeconds);
         }
 
         static int EcId()
@@ -219,10 +230,10 @@ namespace CrunchDrives
         }
 
         // The average speed (c) a spool of this many (paid-for) seconds buys.
-        static double SpoolTierFor(double spoolSeconds)
+        double SpoolTierFor(double spoolSeconds)
         {
-            return CrunchMath.SpoolCoefficient(spoolSeconds, CrunchTuning.MinSpeedC, CrunchTuning.MaxSpeedC,
-                                               CrunchTuning.MinSpoolSeconds, CrunchTuning.MaxSpoolSeconds);
+            return CrunchMath.SpoolCoefficient(spoolSeconds, stats.MinSpeedC, stats.MaxSpeedC,
+                                               stats.MinSpoolSeconds, stats.MaxSpoolSeconds);
         }
 
         // How the first leg is sized: a length in meters or, in Fixed-time mode, a time.
@@ -473,6 +484,9 @@ namespace CrunchDrives
                 if (phase == CrunchPhase.Crunching && !turning) LockOutRotation(crunchVessel);
             }
 
+            // While nothing is running the stats follow the drive on the active craft. A crunch, and the arrival after it, keep their own.
+            if (phase == CrunchPhase.Idle && arrivalVessel == null) stats = StatsFor(FlightGlobals.ActiveVessel);
+
             // Keep the target readout current whenever a target is selected, crunching or not.
             TargetLine = CrunchText.NoTarget;
             TargetName = "";
@@ -530,7 +544,7 @@ namespace CrunchDrives
             {
                 case CrunchPhase.Idle: StartSpool(v); break;
                 case CrunchPhase.Spooling:   // Engage as soon as the spool is long enough: the speed is whatever it has reached.
-                    if (spoolSeconds >= CrunchTuning.MinSpoolSeconds)
+                    if (spoolSeconds >= stats.MinSpoolSeconds)
                     {
                         FinishSpool(v, false, false);
                         TryEngage(v);
@@ -592,8 +606,8 @@ namespace CrunchDrives
                 {
                     Vector3d dir = to.normalized;
                     double err = AngleDeg(axis, dir);
-                    if (err > CrunchTuning.TargetAlignToleranceDeg)
-                    { Refuse(CrunchText.RefuseNotAligned(err, CrunchTuning.TargetAlignToleranceDeg)); return false; }
+                    if (err > stats.TargetAlignToleranceDeg)
+                    { Refuse(CrunchText.RefuseNotAligned(err, stats.TargetAlignToleranceDeg)); return false; }
 
                     locked = true;
                     heading = dir;
@@ -613,11 +627,11 @@ namespace CrunchDrives
             bool timed = fixedSeconds > 0.0;
             if (!timed && !locked) { Refuse(CrunchText.RefuseNoTarget); return false; }
 
-            // Speed: what the spool has paid for, lowered to keep the peak within MaxSpeedC and the leg at least MinCrunchSeconds long.
+            // Speed: what the spool has paid for, lowered to keep the peak within the drive's top speed and the leg at least its shortest length.
             // Before the spool starts only the leg's geometry is checked, with the slowest speed.
-            double tier = CrunchMath.LegSpeed(engaging ? spoolTier : CrunchTuning.MinSpeedC, CrunchTuning.MaxSpeedC,
-                                              CrunchTuning.RampSeconds, meters, fixedSeconds, CrunchTuning.MinCrunchSeconds);
-            if (tier < CrunchTuning.MinSpeedC * 0.999) { Refuse(CrunchText.RefuseTooClose); return false; }
+            double tier = CrunchMath.LegSpeed(engaging ? spoolTier : stats.MinSpeedC, stats.MaxSpeedC,
+                                              stats.RampSeconds, meters, fixedSeconds, stats.MinCrunchSeconds);
+            if (tier < stats.MinSpeedC * 0.999) { Refuse(CrunchText.RefuseTooClose); return false; }
 
             double duration = fixedSeconds;
             if (!timed) duration = CrunchMath.SecondsForDistance(meters, tier);
@@ -655,6 +669,9 @@ namespace CrunchDrives
 
         void StartSpool(Vessel v)
         {
+            // The drive's numbers for this crunch and the arrival after it.
+            stats = StatsFor(v);
+
             // Nothing spins up, and the engines stay free, unless a crunch would actually be allowed.
             CrunchPlan plan;
             if (!TryPlan(v, false, false, out plan)) return;
@@ -668,16 +685,18 @@ namespace CrunchDrives
             capturing = false;
             turning = false;
             turnSpooling = false;
-            spoolTier = CrunchTuning.MinSpeedC;
+            spoolTier = stats.MinSpeedC;
             crunchVessel = v;
             engineThrustTime = 0;
-            BeginSpool(v, CrunchTuning.MaxSpoolSeconds);
+            BeginSpool(v, stats.MaxSpoolSeconds);
             phase = CrunchPhase.Spooling;
             LockOutEngines(v);
-            Status = CrunchText.StatusSpooling(0, CrunchTuning.MinSpeedC, spoolRate, false);
+            Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate, false);
 
             Debug.Log(string.Format("[CrunchDrive] Spool: drawing {0:N0} EC/s ({6:N0} EC per spool second) from {1:N0} EC stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
-                spoolRate, stored, CrunchTuning.MinSpeedC, CrunchTuning.MinSpoolSeconds, CrunchTuning.MaxSpeedC, CrunchTuning.MaxSpoolSeconds, spoolNominal));
+                spoolRate, stored, stats.MinSpeedC, stats.MinSpoolSeconds, stats.MaxSpeedC, stats.MaxSpoolSeconds, spoolNominal));
+            Debug.Log(string.Format("[CrunchDrive] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4:N0} m above the surface, glow over {5:F1} spool seconds.",
+                stats.RampSeconds, stats.TargetAlignToleranceDeg, stats.MinCrunchSeconds, stats.CaptureSpeedFraction, stats.CaptureSafeAltitude, stats.GlowSpoolSeconds));
             Post(CrunchText.MsgSpoolStartOpen);
         }
 
@@ -919,8 +938,8 @@ namespace CrunchDrives
             double remaining = StopDistance(lockedTarget, distance);
             if (remaining <= 0.0) { End(StopAt(lockedTarget, lockedTargetName), true); return; }
 
-            double tier = CrunchMath.LegSpeed(spoolTier, CrunchTuning.MaxSpeedC, CrunchTuning.RampSeconds, remaining, 0.0, CrunchTuning.MinCrunchSeconds);
-            if (tier < CrunchTuning.MinSpeedC * 0.999) { End(StopAt(lockedTarget, lockedTargetName), true); return; }
+            double tier = CrunchMath.LegSpeed(spoolTier, stats.MaxSpeedC, stats.RampSeconds, remaining, 0.0, stats.MinCrunchSeconds);
+            if (tier < stats.MinSpeedC * 0.999) { End(StopAt(lockedTarget, lockedTargetName), true); return; }
             double duration = CrunchMath.SecondsForDistance(remaining, tier);
 
             // Hand the attitude to SAS for the second leg, so the craft holds its heading while the field is up.
@@ -988,14 +1007,14 @@ namespace CrunchDrives
         }
 
         // Lowest altitude-safe radius for a periapsis around this body.
-        static double SafePeriapsisRadius(CelestialBody b)
+        double SafePeriapsisRadius(CelestialBody b)
         {
-            return b.Radius + (b.atmosphere ? b.atmosphereDepth : 0.0) + CrunchTuning.CaptureSafeAltitude;
+            return b.Radius + (b.atmosphere ? b.atmosphereDepth : 0.0) + stats.CaptureSafeAltitude;
         }
 
         // True when the craft is bound to the body (below escape speed) and its orbit's periapsis clears
         // the surface and atmosphere. r and vel are the craft's position and velocity relative to the body.
-        static bool IsCaptured(CelestialBody b, Vector3d r, Vector3d vel, out double periapsisRadius)
+        bool IsCaptured(CelestialBody b, Vector3d r, Vector3d vel, out double periapsisRadius)
         {
             periapsisRadius = 0.0;
             double rm = r.magnitude;
@@ -1006,7 +1025,7 @@ namespace CrunchDrives
             periapsisRadius = CrunchMath.PeriapsisRadius(mu, rm, speed, Vector3d.Cross(r, vel).magnitude);
 
             // A little slack above the target fraction so a ramp that lands on its target counts as done.
-            bool bound = speed <= CrunchMath.EscapeSpeed(mu, rm) * (CrunchTuning.CaptureSpeedFraction + 0.005);
+            bool bound = speed <= CrunchMath.EscapeSpeed(mu, rm) * (stats.CaptureSpeedFraction + 0.005);
             bool clear = periapsisRadius >= SafePeriapsisRadius(b) - 1.0;
             return bound && clear;
         }
@@ -1014,7 +1033,7 @@ namespace CrunchDrives
         // The velocity capture assistance steers toward: the same sideways direction the craft already has
         // (so it is redirected as little as possible), slowed to the bound limit if needed, and no slower
         // than the speed that keeps periapsis clear of the surface.
-        static Vector3d CaptureTargetVelocity(CelestialBody b, Vector3d r, Vector3d vel)
+        Vector3d CaptureTargetVelocity(CelestialBody b, Vector3d r, Vector3d vel)
         {
             double rm = r.magnitude;
             double speed = vel.magnitude;
@@ -1030,7 +1049,7 @@ namespace CrunchDrives
             }
 
             double minSpeed = CrunchMath.MinSpeedForPeriapsis(mu, rm, SafePeriapsisRadius(b)) * 1.02;
-            double s = CrunchMath.CappedArrivalSpeed(System.Math.Max(speed, minSpeed), mu, rm, CrunchTuning.CaptureSpeedFraction);
+            double s = CrunchMath.CappedArrivalSpeed(System.Math.Max(speed, minSpeed), mu, rm, stats.CaptureSpeedFraction);
             return side.normalized * s;
         }
 
@@ -1451,7 +1470,7 @@ namespace CrunchDrives
                 else if (SpoolRanDry())
                 {
                     // The craft ran out of charge. The spool ends and the speed stays where it got to, unless it never got past the minimum.
-                    if (spoolSeconds < CrunchTuning.MinSpoolSeconds)
+                    if (spoolSeconds < stats.MinSpoolSeconds)
                     {
                         Debug.Log(string.Format("[CrunchDrive] Spool ran dry after {0:F1} s: {1:N0} EC drawn, asking for {2:N0} EC/s, {3:N0} EC left on the craft.",
                             spoolElapsed, spoolCharge, spoolRate, ReadStored(v)));
@@ -1466,7 +1485,7 @@ namespace CrunchDrives
                 {
                     // A spool under time warp slows the warp down before it ends by itself, like a crunch leg does.
                     if (TimeWarp.CurrentRate > 1.0f) StepWarpDown(SpoolSecondsLeft(), CrunchTuning.WarpSpoolFinalSeconds);
-                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, spoolSeconds >= CrunchTuning.MinSpoolSeconds);
+                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, spoolSeconds >= stats.MinSpoolSeconds);
                 }
                 return;
             }

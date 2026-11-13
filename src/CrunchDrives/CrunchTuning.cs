@@ -17,7 +17,7 @@ namespace CrunchDrives
         public const double MinSpoolSeconds = 5.0;      // Shortest spool: the crunch can be engaged after this long, and a spool shorter than this gives MinSpeedC.
         public const double MaxSpoolSeconds = 1800.0;   // A spool this long (at the full draw) gives MaxSpeedC and ends by itself. The speed rises in a straight line from MinSpeedC at MinSpoolSeconds.
         public const double SpoolDrySeconds = 0.125;    // The spool ends once the craft has been unable to supply the full draw for this long. 0 = the first short tick.
-        public const double GlowSpoolSeconds = 5;       // The part's emissive glow reaches full this many spool seconds after the spool starts.
+        public const double GlowSpoolSeconds = 5.0;     // The part's emissive glow reaches full this many spool seconds after the spool starts.
 
         // ---- Time warp ----
         // Time warp is allowed during every spool, including the second one between the legs (if the setting is on).
@@ -37,32 +37,30 @@ namespace CrunchDrives
         public const double GlowFadeSeconds = 5.0;          // The part's emissive glow fades back to grey over this long after a crunch (or a cancelled spool).
 
         // ---- Tube of light (the blinding white tube around the craft while a crunch field is up) ----
+        // Shape and size are fixed in CrunchTube: an ellipse that reaches at least 1 m past the craft's ends and at least one ring diameter from the ring.
         public const double TubeRadiusFactor = 0.75;                // Tube radius = the ring's outer radius x this.
-        public const double TubeExtraLengthFraction = 0.0;          // was 0.125
-        public const int TubeSegments = 24;                         // was 48
+        public const int TubeSegments = 24;                         // Sides of the tube.
+        public const int TubeRings = 12;                            // Rings along each half of the tube, so the curve is smooth.
         public const double TubeFadeInSeconds = 0.25;               // The tube grows from the ring to its full length, and fades in, over this long when the field forms. The craft waits this long before it starts to move, so the tube is at full length first.
         public const double TubeFadeOutSeconds = 1.25;              // The tube shrinks back to the ring, and fades out, over this long when the field is down.
-        public const double TubeLightIntensity = 2.5;               // was 5.0
-        public const double TubeLightRangeFactor = 1.25;            // was 1.0
-        public const double TubeStretchAmount = 0.025;              // was 0.075
-        public const double TubeFlickerHz = 32.0;                   // How fast they waver (roughly flickers per second).
-        public const double TubeFlickerAmount = 0.25;               // was 0.125
-        public const double TubeMinHalfLengthRingDiameters = 1.0;   // However small the craft, each end of the tube is at least this many ring diameters long (so the whole tube is at least twice that).
-        public const double TubeShapeExponent = 2.0;                // Curve of the tube: widest at the ring, closing to a point at each end. 2 = an ellipse; higher = fuller near the ring, sharper at the tips. 1 is a straight cone, and lower counts as 1.
-        public const double TubeFitMaxFactor = 1.75;                // was 2.5
-        public const int TubeRings = 12;                            // was 24
-        public const int TubeHaloShells = 8;                        // was 12
-        public const double TubeHaloSpread = 0.5;                   // was 1.125
-        public const double TubeHaloStrength = 0.125;               // How bright the glow is right at the tube's edge, 0..1. It falls off smoothly from there to nothing at the outermost layer. (The old per-layer value 0.05 with 5 layers came to about 0.15.)
+        public const double TubeFitMaxFactor = 1.75;                // The tube is lengthened to cover wide parts far from the ring, but never past this x that part's distance from the ring. Parts wider than that stick out.
+        public const double TubeLightIntensity = 2.5;               // Point light at the ring, part of the same effect.
+        public const double TubeLightRangeFactor = 1.25;            // The light reaches this x the craft's length.
+        public const double TubeStretchAmount = 0.025;              // The tube's length pulses with the flicker by up to this share. It only stretches past its measured length, never shrinks below it.
+        public const double TubeFlickerHz = 32.0;                   // How fast the tube and its light waver (roughly flickers per second).
+        public const double TubeFlickerAmount = 0.25;               // How far they waver, 0..1 (0 = steady).
+        public const int TubeHaloShells = 8;                        // Soft layers around the tube that blur its edge; 0 = a hard edge.
+        public const double TubeHaloSpread = 0.5;                   // The outermost soft layer is this much wider than the tube (x the tube's radius).
+        public const double TubeHaloStrength = 0.125;               // How bright the glow is right at the tube's edge, 0..1. It falls off smoothly from there to nothing at the outermost layer.
         public const double TubeHaloFalloff = 0.5;                  // Width of that falloff as a share of the glow's width: smaller = a tight glow that dies quickly, larger = a flatter, wider haze.
 
         // ---- Flash (a brief, overwhelming glow at the ring, every time the craft enters or leaves the crunch field) ----
-        public const double FlashRiseSeconds = 0.075;   // The flash reaches full brightness this fast.
-        public const double FlashFadeSeconds = 0.125;   // Then it dies away over this long (fast at first, with a long soft tail).
-        public const double FlashSizeFactor = 2.5;      // was 1.25
-        public const double FlashGrowth = 2.0;          // was 0.75
+        public const double FlashRiseSeconds = 0.125;   // The flash reaches full brightness this fast.
+        public const double FlashFadeSeconds = 0.25;    // Then it dies away over this long (fast at first, with a long soft tail).
+        public const double FlashSizeFactor = 2.5;      // The flash's diameter at its start, x the diameter of a sphere around the ring that holds the whole craft.
+        public const double FlashGrowth = 2.0;          // The flash grows by this share of its size as it dies away.
         public const double FlashStrength = 1.0;        // Peak opacity, 0..1.
-        public const double FlashLightIntensity = 2.5;  // was 15.0
+        public const double FlashLightIntensity = 2.5;  // Point light at the flash's peak.
 
         // ---- Safety ----
         public const double EngineGraceSeconds = 0.25;  // Engine thrust tolerated this long before the drive aborts.
@@ -72,7 +70,7 @@ namespace CrunchDrives
         public const double TurnAlignToleranceDeg = 2.5;    // Before the second leg: how far the tail may be off the target.
         public const double TurnSettleRateDegPerSec = 0.5;  // Before the second leg, remain below this rate while aligned.
         public const double TurnSettleSeconds = 0.5;        // Required time below the rate threshold.
-        public const double MinCrunchSeconds = 0.1;
+        public const double MinCrunchSeconds = 0.1;         // No leg is shorter than this.
         public const double VesselStopDistance = 75000.0;   // Stop this far short of a targeted vessel (m).
 
         // ---- Turn between the legs (attitude controller) ----
@@ -99,7 +97,7 @@ namespace CrunchDrives
         public const double InterceptMinSeconds = 30.0;         // Minimum duration of the final approach.
         public const double InterceptMaxDistance = 1000000.0;   // Farther than this from the target craft (m), the craft is captured by the body instead.
 
-        // ---- Player controls (live values; the primary crunch drive copies its craft settings here, and the debug window sets the last two) ----
+        // ---- Player controls (live values; the primary crunch drive copies its craft settings here, and the debug window sets UseTurnController and AllowWarp) ----
         public static TravelMode Mode = TravelMode.FullDistance;    // Single-leg crunches only; a two-leg crunch plans its own distances.
         public static double CrunchSeconds = 10.0;                  // Duration in FixedDuration mode (single-leg crunches only).
         public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
