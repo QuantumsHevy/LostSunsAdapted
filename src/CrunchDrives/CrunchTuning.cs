@@ -38,7 +38,7 @@ namespace CrunchDrives
 
         // ---- Tube of light (the blinding white tube around the craft while a crunch field is up) ----
         // Shape and size are fixed in CrunchTube: an ellipse that reaches at least 1 m past the craft's ends and at least one ring diameter from the ring.
-        public const double TubeRadiusFactor = 0.75;                // Tube radius = the ring's outer radius x this.
+        public const double TubeRadiusFactor = 1.0;                 // Tube radius = the ring's outer radius x this.
         public const int TubeSegments = 24;                         // Sides of the tube.
         public const int TubeRings = 12;                            // Rings along each half of the tube, so the curve is smooth.
         public const double TubeFadeInSeconds = 0.25;               // The tube grows from the ring to its full length, and fades in, over this long when the field forms. The craft waits this long before it starts to move, so the tube is at full length first.

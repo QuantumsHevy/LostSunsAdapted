@@ -32,28 +32,34 @@ namespace CrunchDrives
         public const string StatusStandby = "Standby";
         public const string ActionPrimary = "Crunch Field";
         public const string ModuleInfo = "Generates a Casimir-compressed gravity field in front of the craft. Range and compression depend on the power level and target.";
+        public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
 
-        // The drive's performance numbers, as listed in the part's info in the VAB/SPH (the same place a stock engine lists its thrust and propellants).
+        // The part's info in the VAB/SPH, laid out like the stock engines' lists: bold labels, then a "Requires" list in the stock green.
+        // Starts with "\n\n" so it follows ModuleInfo.
         public static string ModuleInfoStats(DriveStats s, double ecPerSecond, double drawMinEc, double drawMaxEc)
         {
             return string.Format(
-                "\n\n<b>Crunch Coefficient:</b> {0:G3}c to {1:G3}c\n" +
-                "<b>Charge Time:</b> {2} to {3}\n" +
-                "<b>Power Draw:</b> {4:N0} EC per charge second ({5:N0} to {6:N0} EC/s)\n" +
-                "<b>Full Charge Cost:</b> {7:N0} EC\n" +
-                "<b>Ramp Time:</b> {8:F1} s\n" +
-                "<b>Aim Tolerance:</b> {9:F1} degrees\n" +
-                "<b>Capture Limit:</b> {10:P1} of escape speed, periapsis {11} above the surface",
-                s.MinSpeedC, s.MaxSpeedC,
-                FormatDuration(s.MinSpoolSeconds), FormatDuration(s.MaxSpoolSeconds),
-                ecPerSecond, drawMinEc, drawMaxEc,
-                ecPerSecond * s.MaxSpoolSeconds,
-                s.RampSeconds,
-                s.TargetAlignToleranceDeg,
-                s.CaptureSpeedFraction, FormatDistance(s.CaptureSafeAltitude));
+                "\n\n<b>Crunch Coefficient: </b>{0:G3}c to {1:G3}c" +
+                "\n<b>Charge Time: </b>{2} to {3}" +
+                "\n<b>Ramp Time: </b>{4}" +
+                "\n<b>Alignment Tolerance: </b>{5:F1} degrees" +
+                "\n<b>Shortest Crunch: </b>{6}" +
+                "\n<b>Capture Assistance: </b>up to {7:P1} of escape speed, {8} above the surface" +
+                "\n<b>Power Draw Rate: </b>{9:N0} to {10:N0} EC/s" +
+                "\n<b>Full Charge: </b>{11:N0} EC" +
+                "\n\n<b><color=#99ff00ff>Requires:</color></b>" +
+                "\n- <b>Electric Charge</b>: {12:N0}/sec",
+                s.MinSpeedC, s.MaxSpeedC, FormatDuration(s.MinSpoolSeconds), FormatDuration(s.MaxSpoolSeconds),
+                FormatDuration(s.RampSeconds), s.TargetAlignToleranceDeg, FormatDuration(s.MinCrunchSeconds),
+                s.CaptureSpeedFraction, FormatDistance(s.CaptureSafeAltitude), drawMinEc, drawMaxEc,
+                s.MaxSpoolSeconds * ecPerSecond, ecPerSecond);
         }
 
-        public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
+        // The one-line summary the VAB/SPH shows for the part, like "Max. Thrust" for an engine.
+        public static string PrimaryField(double maxSpeedC)
+        {
+            return string.Format("<b>Max. Crunch Coefficient: </b>{0:G3}c", maxSpeedC);
+        }
 
         public static string FieldCoefficientValue(double tierC) { return string.Format("{0:G3}c", tierC); }
         public static string FieldSpoolValue(double elapsed, double tierC)

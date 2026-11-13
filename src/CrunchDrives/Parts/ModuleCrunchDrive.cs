@@ -8,7 +8,7 @@ namespace CrunchDrives
     // crunch (see CrunchController.HasDrive), its right-click menu is the player's control panel, and it plays the
     // sound cues. The first drive on the active craft is the "primary" one; it owns the settings, the cues and the
     // performance stats (see Stats), and any further drive just shows standby.
-    public class ModuleCrunchDrive : PartModule
+    public class ModuleCrunchDrive : PartModule, IModuleInfo
     {
         const string MainGroup = "CrunchDrive";
         const string TargetGroup = "CrunchDriveTarget";
@@ -625,9 +625,28 @@ namespace CrunchDrives
             return CrunchText.ModuleTitle;
         }
 
+        // The part's info list in the VAB/SPH (the same place the stock engines list their thrust and propellants). It reads only
+        // this module's own cfg values, so it also works on the part's prefab, before any craft exists.
         public override string GetInfo()
         {
             return CrunchText.ModuleInfo + CrunchText.ModuleInfoStats(Stats, SpoolEcPerSecond, SpoolRateMinEc, SpoolRateMaxEc);
+        }
+
+        // IModuleInfo: how the part's tooltip and info panel title this module and summarise it in one line (the way an engine
+        // shows "Max. Thrust"). UNVERIFIED: the interface's members are from memory.
+        public string GetModuleTitle()
+        {
+            return CrunchText.ModuleTitle;
+        }
+
+        public Callback<Rect> GetDrawModulePanelCallback()
+        {
+            return null;   // No custom panel; the text from GetInfo is shown.
+        }
+
+        public string GetPrimaryField()
+        {
+            return CrunchText.PrimaryField(Stats.MaxSpeedC);
         }
     }
 }

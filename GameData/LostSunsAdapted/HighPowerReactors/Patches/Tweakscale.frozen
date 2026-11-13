@@ -1,4 +1,4 @@
-@PART[]:NEEDS[TweakScale]:FOR[CrunchDrive]
+@PART[]:NEEDS[TweakScale]:FOR[HighPowerReactors]
 {
 	%MODULE[TweakScale]
 	{
