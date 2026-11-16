@@ -31,7 +31,7 @@ namespace CrunchDrives
         public const string ToggleOff = "Off";
         public const string StatusStandby = "Standby";
         public const string ActionPrimary = "Crunch Field";
-        public const string ModuleInfo = "Generates a Casimir-compressed gravity field in front of the craft. Range and compression depend on the power level and target.";
+        public const string ModuleInfo = "By rapidly passing thousands of precisely-machined blades within nanometers of one another, crunch drives exploit the Casimir effect to create negative-energy fields that, when resonant, allow the space ahead of the vessel to be vastly compressed. This lets apparent superluminal velocities of up to 250c be achieved.";
         public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
 
         // The part's info in the VAB/SPH, laid out like the stock engines' lists: bold labels, then a "Requires" list in the stock green.
@@ -39,13 +39,13 @@ namespace CrunchDrives
         public static string ModuleInfoStats(DriveStats s, double ecPerSecond, double drawMinEc, double drawMaxEc)
         {
             return string.Format(
-                "\n\n<b>Crunch Coefficient: </b>{0:G3}c to {1:G3}c" +
-                "\n<b>Charge Time: </b>{2} to {3}" +
+                "\n\n<b>Crunch Coefficient: </b>{0:G3}c - {1:G3}c" +
+                "\n<b>Charge Time: </b>{2} - {3}" +
                 "\n<b>Ramp Time: </b>{4}" +
-                "\n<b>Alignment Tolerance: </b>{5:F1} degrees" +
+                "\n<b>Alignment Tolerance: </b>{5:F1} deg" +
                 "\n<b>Shortest Crunch: </b>{6}" +
-                "\n<b>Capture Assistance: </b>up to {7:P1} of escape speed, {8} above the surface" +
-                "\n<b>Power Draw Rate: </b>{9:N0} to {10:N0} EC/s" +
+                "\n<b>Capture Assistance: </b>up to {7:P1} escape vel, {8} above surf/atm" +
+                "\n<b>Power Draw Rate: </b>{9:N0} - {10:N0} EC/s" +
                 "\n<b>Full Charge: </b>{11:N0} EC" +
                 "\n\n<b><color=#99ff00ff>Requires:</color></b>" +
                 "\n- <b>Electric Charge</b>: {12:N0}/sec",
