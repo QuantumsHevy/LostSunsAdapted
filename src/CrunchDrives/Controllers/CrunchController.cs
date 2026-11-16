@@ -153,6 +153,8 @@ namespace CrunchDrives
         double spoolLastUt = -1.0;  // Universal time at the last spool tick, for spools under time warp.
 
         static int ecId = -2;       // ElectricCharge's resource id; -2 = not looked up yet, -1 = not found.
+        static float lastWarpLockPost = -10f;   // Unscaled time of the last "warp locked" message, so holding the warp key doesn't flood the screen.
+        const float WarpLockPostGapSeconds = 2f;
 
         double engineThrustTime;    // Seconds of continuous engine thrust seen while the drive is active.
         double activeTier;          // Average speed (c) locked in when the crunch engaged.
@@ -482,6 +484,9 @@ namespace CrunchDrives
             {
                 LockOutEngines(crunchVessel);
                 if (phase == CrunchPhase.Crunching && !turning) LockOutRotation(crunchVessel);
+
+                // Time warp is locked out the same way: the moment it starts where it isn't allowed, it is put back to 1x.
+                EnforceWarpLock();
             }
 
             // While nothing is running the stats follow the drive on the active craft. A crunch, and the arrival after it, keep their own.
@@ -639,10 +644,22 @@ namespace CrunchDrives
             double ramp = RampFor(duration);
 
             // On-rails time warp is only allowed for a long leg that is being engaged (not before the spool starts).
+            // A drive that is engaged under warp when the leg is too short for it is not refused: warp is dropped to 1x and the crunch goes ahead.
             bool warpOk = duration >= CrunchTuning.WarpMinLegSeconds;
             if (TimeWarp.CurrentRate > 1.0f &&
                 !(warpOk && CrunchTuning.AllowWarp && phase == CrunchPhase.Ready))
-            { Refuse(CrunchText.RefuseTimeWarp); return false; }
+            {
+                if (engaging)
+                {
+                    ReleaseWarp();
+                    Post(CrunchText.MsgWarpLockedShort);
+                }
+                else
+                {
+                    Refuse(CrunchText.RefuseTimeWarp);
+                    return false;
+                }
+            }
 
             if (announce)
                 Debug.Log(string.Format("[CrunchDrive] {0}: {1}{2}, compression coefficient {3:G4}c (peak {4:G4}c), leg {5:F2} s, ramps {7:F2} s{6}",
@@ -776,6 +793,32 @@ namespace CrunchDrives
             }
         }
 
+        // Time warp is locked out wherever WarpAllowed() says no: the instant it is running there, it is put back to 1x (instantly,
+        // not stepped down) and the player is told why. Called every frame from Update and again every physics tick from FixedUpdate,
+        // so a warp press is undone before the crunch logic ever sees it, and the crunch is never ended by it.
+        // The screen message is rate-limited so that holding the warp key does not flood the screen.
+        void EnforceWarpLock()
+        {
+            if (TimeWarp.CurrentRate <= 1.0f || WarpAllowed()) return;
+
+            double rate = TimeWarp.CurrentRate;
+            TimeWarp.SetRate(0, true);
+
+            string why;
+            if (!CrunchTuning.AllowWarp) why = CrunchText.MsgWarpLockedOff;
+            else if (phase == CrunchPhase.Crunching && turning) why = CrunchText.MsgWarpLockedTurning;
+            else why = CrunchText.MsgWarpLockedShort;
+
+            Debug.Log(string.Format("[CrunchDrive] Time warp ({0:G}x) locked out: phase {1}, leg {2}, turning={3}, leg length {4:F1} s, warp-capable={5}. Back to 1x.",
+                rate, phase, leg, turning, activeDuration, activeWarpOk));
+
+            if (Time.unscaledTime - lastWarpLockPost >= WarpLockPostGapSeconds)
+            {
+                lastWarpLockPost = Time.unscaledTime;
+                ScreenMessages.PostScreenMessage(CrunchText.ScreenPrefix + why, 4f, ScreenMessageStyle.UPPER_CENTER);
+            }
+        }
+
         static string StopAt(ITargetable t, string name)
         {
             CelestialBody b = t as CelestialBody;
@@ -828,8 +871,9 @@ namespace CrunchDrives
         // points at the target within the alignment tolerance.
         void TickTurn(Vessel v, double dt)
         {
-            // A player who warps during the turn just gets dropped back to 1x, except during the second spool:
+            // Time warp is locked out during the turn (see EnforceWarpLock), except during the second spool:
             // by then the craft is aligned with the target, and nothing needs steering until the spool is done.
+            // This is only a backstop in case a warp slipped through.
             if (!(turnSpooling && CrunchTuning.AllowWarp)) ReleaseWarp();
 
             Vector3d tp;
@@ -845,7 +889,7 @@ namespace CrunchDrives
             // The second leg is backwards, so its crunch axis is the tail.
             Vector3d nose = ((Vector3d)v.ReferenceTransform.up).normalized;
             double err = AngleDeg(nose * -1.0, dir);
-            Status = CrunchText.StatusTurning(lockedTargetName, err);
+            if (!turnSpooling) Status = CrunchText.StatusTurning(lockedTargetName, err);   // During the second spool the status stays SPOOLING.
 
             // The second spool under time warp: only the charge is drawn. When it is done warp drops to 1x, and the craft
             // is judged aligned again in physics before the second leg starts.
@@ -1394,14 +1438,17 @@ namespace CrunchDrives
             return CrunchMath.TrapezoidSpeedFactor(progress, activeRamp);
         }
 
-        // Time warp is allowed while the blades spool, and for long legs (see CrunchTuning.WarpMinLegSeconds; experimental).
+        // Where time warp is allowed (everywhere else it is locked out and put back to 1x, see EnforceWarpLock): while the blades
+        // spool (the first spool, the ready wait, and the second spool between the legs), and during a crunch leg that is long
+        // enough for it (see CrunchTuning.WarpMinLegSeconds; experimental). Never during the turn between the legs, apart from
+        // the second spool, and never during a short leg.
         bool WarpAllowed()
         {
             if (!CrunchTuning.AllowWarp) return false;
             if (phase == CrunchPhase.Spooling) return true;
             if (phase == CrunchPhase.Ready) return true;   // Engaging checks that the leg is long enough for warp.
             if (phase != CrunchPhase.Crunching) return false;
-            if (turning && turnSpooling) return true;   // The second spool, like the first: the craft already points at the target.
+            if (turning) return turnSpooling;   // The turn itself is never allowed; the second spool is, like the first: the craft already points at the target.
             return activeWarpOk;
         }
 
@@ -1443,7 +1490,7 @@ namespace CrunchDrives
 
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null || v != crunchVessel) { End(CrunchText.StopVesselChanged); return; }
-            if (TimeWarp.CurrentRate > 1.0f && !WarpAllowed()) { End(CrunchText.StopTimeWarp); return; }
+            EnforceWarpLock();   // Warp where it isn't allowed is dropped to 1x; it no longer ends the crunch.
             if (!HasDrive(v)) { End(CrunchText.StopDriveLost); return; }
 
             double dt = TimeWarp.fixedDeltaTime;

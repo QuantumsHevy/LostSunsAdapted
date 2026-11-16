@@ -321,7 +321,7 @@ namespace CrunchDrives
             bool dropoutKnown = CrunchController.DropoutBodyName.Length > 0;
 
             // ---- Readouts: crunch field ----
-            statusLine = CrunchText.PhaseWord(phase, turning);
+            statusLine = CrunchText.PhaseWord(phase, turning, spooling);
 
             coefficientLine = CrunchText.FieldCoefficientValue(CrunchController.ActiveTierC);
             SetVisible(nameof(coefficientLine), phase != CrunchPhase.Idle);

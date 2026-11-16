@@ -81,9 +81,9 @@ namespace CrunchDrives
         public static string FieldTimeValue(double elapsed, double duration) { return FormatDuration(elapsed) + " / " + FormatDuration(duration); }
         public static string FieldRangeValue(double seconds, double tierC) { return FormatDistance(tierC * CrunchMath.C * seconds); }
 
-        public static string PhaseWord(CrunchPhase phase, bool turning)
+        public static string PhaseWord(CrunchPhase phase, bool turning, bool spooling = false)
         {
-            if (phase == CrunchPhase.Crunching && turning) return "TURNING...";
+            if (phase == CrunchPhase.Crunching && turning) return spooling ? "SPOOLING..." : "TURNING...";   // The second spool happens during the turn phase.
             switch (phase)
             {
                 case CrunchPhase.Spooling: return "SPOOLING...";
@@ -227,6 +227,9 @@ namespace CrunchDrives
         }
         public const string MsgTurnControllerFallback = "Attitude controller found no steering torque. Switching to SAS...";
         public const string MsgWarpDropped = "Time warp released.";
+        public const string MsgWarpLockedTurning = "Time warp unavailable while turning.";
+        public const string MsgWarpLockedShort = "Time warp unavailable during short crunches.";
+        public const string MsgWarpLockedOff = "Time warp is disabled for the crunch drive.";
         public const string MsgFirstLegDone = "Leg 1 complete. Turning...";
         public const string MsgSecondLeg = "Starting leg 2...";
 
