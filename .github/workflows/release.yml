@@ -45,7 +45,7 @@ jobs:
       - name: Copy docs into mod folder
         run: |
           for f in README.md LICENSE CHANGELOG.md; do
-            [ -f "$f" ] && cp "$f" GameData/LostSunsAdapted/CrunchDrives/ || echo "Skipping $f (not found at repo root)"
+            [ -f "$f" ] && cp "$f" GameData/LostSunsAdapted/ || echo "Skipping $f (not found at repo root)"
           done
 
       - name: Zip only GameData contents
