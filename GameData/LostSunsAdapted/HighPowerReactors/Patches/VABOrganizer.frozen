@@ -1,7 +1,0 @@
-@PART[]:FOR[HighPowerReactors]:NEEDS[VABOrganizer]
-{
-  %VABORGANIZER
-  {
-    %organizerSubcategory = 
-  }
-}
