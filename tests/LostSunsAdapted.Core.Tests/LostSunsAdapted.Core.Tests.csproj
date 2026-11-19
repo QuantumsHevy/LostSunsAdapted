@@ -15,6 +15,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\src\CrunchDrives\Math\*.cs" />
+    <Compile Include="..\..\src\CrunchDrives\CrunchMath.cs" />
+    <Compile Include="..\..\src\CrunchDrives\Vec3d.cs" />
   </ItemGroup>
 </Project>

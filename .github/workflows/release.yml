@@ -71,6 +71,14 @@ jobs:
             echo "::error::No .version file in the zip. Expected under GameData/LostSunsAdapted/CrunchDrives/Versioning."
             exit 1
           fi
+          if ! unzip -Z1 "$ZIP" | grep -q '^LostSunsAdapted/HighPowerReactors/Plugins/LostSunsHighPowerReactors\.dll$'; then
+            echo "::error::No reactors plugin .dll in the zip. Build in Release and commit the .dll under GameData/LostSunsAdapted/HighPowerReactors/Plugins."
+            exit 1
+          fi
+          if ! unzip -Z1 "$ZIP" | grep -q '^LostSunsAdapted/HighPowerReactors/Versioning/[^/]*\.version$'; then
+            echo "::error::No reactors .version file in the zip. Expected under GameData/LostSunsAdapted/HighPowerReactors/Versioning."
+            exit 1
+          fi
           echo "Zip contents:"
           unzip -Z1 "$ZIP"
 

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CrunchDrives/CrunchDrives.csproj" />
+    <Project Path="src/HighPowerReactors/HighPowerReactors.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LostSunsAdapted.Core.Tests/LostSunsAdapted.Core.Tests.csproj" />
+  </Folder>
+</Solution>
