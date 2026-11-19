@@ -1,12 +1,14 @@
 using System.Collections.Generic;
+using CrunchDrives.Core;
 using UnityEngine;
 
 namespace CrunchDrives
 {
-    // The blinding white tube around the craft while a crunch field is up: a spindle along the ring's axis, widest at the
-    // ring and closing to a point past each end of the craft, with soft layers around it that blur its edge. It is solid
-    // white over the whole craft and starts to fade out exactly at the craft's outermost points (no padding past them),
-    // easing to nothing at the tips instead of cutting off. It is at its full length the moment the field forms, and its
+    // The blinding white tube around the craft while a crunch field is up: a tube along the ring's axis, widest at the ring, with
+    // soft layers around it that blur its edge. CrunchTuning.TubeCurve sets how much it closes in toward its ends (0 = straight,
+    // 1 = an ellipse closing to a point), and CrunchTuning.TubeFadeStart where it starts to fade out along its length (0 = at the
+    // ring, 1 = at the craft's outermost points with no padding past them, 2 = never, so it cuts off). Both ends are the same.
+    // It is at its full length the moment the field forms, and its
     // brightness follows the craft's live speed (dark at rest, full from 1c up). When the field is down it shrinks back to the
     // ring and fades out. The flash, the tube and its light are one effect: all on, or all off. While the field is
     // up the tube's length pulses with the flicker (it only ever stretches past its measured length, never shrinks below it,
@@ -246,7 +248,8 @@ namespace CrunchDrives
         {
             if (root == null || !scanned) return;
 
-            // The curve of the tube pulls in toward its tips, so a wide part far from the ring needs a longer tube to stay inside it.
+            // The curve of the tube can pull in toward its tips, so a wide part far from the ring needs a longer tube to stay inside it.
+            float curve = (float)CrunchTuning.TubeCurve;
             float ringR = Mathf.Max(0.5f, scanRingRadius * (float)CrunchTuning.TubeRadiusFactor);
             float fitMax = (float)CrunchTuning.TubeFitMaxFactor;
 
@@ -261,12 +264,12 @@ namespace CrunchDrives
                 bool capped = false;
                 if (c.along > 0f)
                 {
-                    float need = RequiredLength(c.along, c.radial, ringR, fitMax, out capped);
+                    float need = (float)CrunchMath.TubeRequiredLength(c.along, c.radial, ringR, fitMax, curve, out capped);
                     if (need > needForward) { needForward = need; forwardPart = scanParts[c.part]; forwardAlong = c.along; forwardRadial = c.radial; }
                 }
                 else if (c.along < 0f)
                 {
-                    float need = RequiredLength(-c.along, c.radial, ringR, fitMax, out capped);
+                    float need = (float)CrunchMath.TubeRequiredLength(-c.along, c.radial, ringR, fitMax, curve, out capped);
                     if (need > needBackward) { needBackward = need; backwardPart = scanParts[c.part]; backwardAlong = c.along; backwardRadial = c.radial; }
                 }
                 if (capped) poking++;
@@ -286,9 +289,9 @@ namespace CrunchDrives
             forward = length;
             backward = length;
 
-            // The tube is fully opaque up to the craft's outermost point and fades from there. Both ends fade from the same distance
-            // (the farther of the two craft ends), so the whole craft stays covered whichever way it faces.
-            float solid = Mathf.Min(Mathf.Max(maxAlong, -minAlong), length * 0.95f);
+            // The tube is fully opaque up to the fade start (CrunchTuning.TubeFadeStart) and fades from there. Both ends fade from the same
+            // distance (measured from the farther of the two craft ends), so the tube looks the same whichever way the craft faces.
+            float solid = (float)CrunchMath.TubeSolidDistance(Mathf.Max(maxAlong, -minAlong), length, CrunchTuning.TubeFadeStart);
 
             int segments = CrunchTuning.TubeSegments;
             DestroyMesh(forwardFilter);
@@ -582,15 +585,6 @@ namespace CrunchDrives
 
         // ---- Mesh ----
 
-        // Opacity along the tube: fully opaque from the ring to solid, then easing to nothing at the far end.
-        public static float EndAlpha(float distance, float solid, float length)
-        {
-            if (distance <= solid) return 1f;
-            if (distance >= length) return 0f;
-            float t = (distance - solid) / (length - solid);
-            return 1f - Mathf.SmoothStep(0f, 1f, t);
-        }
-
         // Opacity of the glow texture at radius r from its centre (0 = centre, 1 = edge): a small bright core, then a smooth fade to nothing at the edge.
         public static float GlowAlpha(float r)
         {
@@ -636,38 +630,18 @@ namespace CrunchDrives
             return Mathf.Exp(-(d * d) / (k * k));
         }
 
-        // How long a tube must be for a point 'along' the axis and 'radial' from it to be inside it.
-        // The result is never more than maxFactor x 'along': a part much wider than the ring would otherwise ask for a tube
-        // many times the craft's length, so it is left poking out of the tube instead (capped is true then).
-        public static float RequiredLength(float along, float radial, float ringRadius, float maxFactor, out bool capped, float margin = 1.05f)
-        {
-            capped = false;
-            if (along <= 0f) return 0f;
-            float ratio = Mathf.Min(radial / ringRadius, 0.98f);
-            float fit = Mathf.Sqrt(1f - ratio * ratio);   // Share of the length at which the ellipse is as wide as the point.
-            float length = along / fit * margin;
-            if (length > along * maxFactor) { capped = true; return along * maxFactor; }
-            return length;
-        }
-
-        // The tube's radius at u (0 at the ring, 1 at the tip) as a share of the ring's radius: an ellipse, widest at the ring, closing to a point.
-        public static float RadiusScale(float u)
-        {
-            u = Mathf.Clamp01(u);
-            return Mathf.Sqrt(1f - u * u);
-        }
-
         // One half of the tube, from the ring (y = 0) out to y = direction * length, drawn from both sides. The opacity is
-        // carried in the vertex colours, so it fades out toward the tip. Wider, fainter copies of the tube (the halo)
+        // carried in the vertex colours, so it fades out from the fade start toward the tip. Wider, fainter copies of the tube (the halo)
         // blur its outline.
         static Mesh BuildTube(float radius, float length, float solid, int segments, float direction)
         {
             int count = CrunchTuning.TubeRings;
+            float curve = (float)CrunchTuning.TubeCurve;
             List<float> us = new List<float>();
             for (int i = 0; i <= count; i++)
             {
                 float t = (float)i / count;
-                us.Add(1f - (1f - t) * (1f - t));   // Rings are packed closer toward the tip, where the curve is steepest.
+                us.Add(Mathf.Lerp(t, 1f - (1f - t) * (1f - t), Mathf.Clamp01(curve)));   // The more the tube curves, the closer the rings are packed toward the tip, where the curve is steepest.
             }
             float solidU = Mathf.Clamp01(solid / length);
             us.Add(solidU);                          // A ring exactly where the opaque part ends.
@@ -694,8 +668,8 @@ namespace CrunchDrives
                 for (int r = 0; r < us.Count; r++)
                 {
                     float y = length * us[r];
-                    float rad = radius * widen * RadiusScale(us[r]);
-                    Color c = new Color(1f, 1f, 1f, EndAlpha(y, solid, length) * fade);
+                    float rad = radius * widen * (float)CrunchMath.TubeRadiusScale(us[r], curve);
+                    Color c = new Color(1f, 1f, 1f, (float)CrunchMath.TubeEndAlpha(y, solid, length) * fade);
                     for (int i = 0; i < ringVerts; i++)
                     {
                         float a = (float)i / segments * Mathf.PI * 2f;

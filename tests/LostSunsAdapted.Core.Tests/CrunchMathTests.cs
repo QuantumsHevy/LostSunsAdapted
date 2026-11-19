@@ -302,6 +302,137 @@ public class CrunchMathTests
     public void A_drive_with_no_top_speed_has_no_pitch_change()
         => Assert.Equal(0.0, CrunchMath.SpeedPitchFraction(5.0, 0.0), 9);
 
+    // ---- Tube of light: its shape ----
+
+    [Fact]
+    public void A_full_curve_is_the_ellipse()
+    {
+        Assert.Equal(1.0, CrunchMath.TubeRadiusScale(0.0, 1.0), 9);
+        Assert.Equal(0.8, CrunchMath.TubeRadiusScale(0.6, 1.0), 9);
+        Assert.Equal(0.0, CrunchMath.TubeRadiusScale(1.0, 1.0), 9);
+    }
+
+    [Fact]
+    public void No_curve_is_a_straight_tube()
+    {
+        for (int i = 0; i <= 10; i++)
+            Assert.Equal(1.0, CrunchMath.TubeRadiusScale(i / 10.0, 0.0), 9);
+    }
+
+    [Fact]
+    public void A_half_curve_is_halfway_between_straight_and_the_ellipse()
+    {
+        Assert.Equal(0.9, CrunchMath.TubeRadiusScale(0.6, 0.5), 9);
+        Assert.Equal(0.5, CrunchMath.TubeRadiusScale(1.0, 0.5), 9);
+    }
+
+    [Fact]
+    public void A_straighter_tube_is_never_narrower()
+    {
+        for (int i = 0; i <= 10; i++)
+        {
+            double u = i / 10.0;
+            Assert.True(CrunchMath.TubeRadiusScale(u, 0.25) >= CrunchMath.TubeRadiusScale(u, 0.75) - 1e-12);
+        }
+    }
+
+    [Fact]
+    public void The_tube_is_opaque_up_to_the_solid_distance_and_fades_to_nothing_at_its_end()
+    {
+        Assert.Equal(1.0, CrunchMath.TubeEndAlpha(0.0, 6.0, 10.0), 9);
+        Assert.Equal(1.0, CrunchMath.TubeEndAlpha(6.0, 6.0, 10.0), 9);
+        Assert.Equal(0.5, CrunchMath.TubeEndAlpha(8.0, 6.0, 10.0), 9);
+        Assert.Equal(0.0, CrunchMath.TubeEndAlpha(10.0, 6.0, 10.0), 9);
+    }
+
+    [Fact]
+    public void A_solid_distance_at_the_end_leaves_the_tube_opaque_all_the_way()
+    {
+        Assert.Equal(1.0, CrunchMath.TubeEndAlpha(9.99, 10.0, 10.0), 9);
+        Assert.Equal(1.0, CrunchMath.TubeEndAlpha(10.0, 10.0, 10.0), 9);
+    }
+
+    [Fact]
+    public void The_fade_starts_at_the_ring_the_craft_s_reach_or_never()
+    {
+        Assert.Equal(0.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 0.0), 9);
+        Assert.Equal(3.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 0.5), 9);
+        Assert.Equal(6.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 1.0), 9);
+        Assert.Equal(8.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 1.5), 9);
+        Assert.Equal(10.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 2.0), 9);
+    }
+
+    [Fact]
+    public void The_fade_start_setting_is_kept_between_0_and_2()
+    {
+        Assert.Equal(0.0, CrunchMath.TubeSolidDistance(6.0, 10.0, -1.0), 9);
+        Assert.Equal(10.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 5.0), 9);
+    }
+
+    [Fact]
+    public void A_craft_reaching_the_tip_still_leaves_the_tip_to_fade_at_a_setting_of_1()
+        => Assert.Equal(9.5, CrunchMath.TubeSolidDistance(12.0, 10.0, 1.0), 9);
+
+    [Fact]
+    public void The_fade_start_never_moves_the_solid_distance_closer_to_the_ring_as_it_rises()
+    {
+        double previous = 0.0;
+        for (int i = 0; i <= 40; i++)
+        {
+            double d = CrunchMath.TubeSolidDistance(6.0, 10.0, i * 0.05);
+            Assert.True(d >= previous - 1e-12);
+            previous = d;
+        }
+    }
+
+    [Fact]
+    public void With_a_full_curve_the_tube_length_fits_the_ellipse()
+    {
+        double length = CrunchMath.TubeRequiredLength(10.0, 0.6, 1.0, 1.75, 1.0, out bool capped);
+        Assert.Equal(10.0 / 0.8 * 1.05, length, 9);
+        Assert.False(capped);
+    }
+
+    [Fact]
+    public void With_no_curve_a_part_inside_the_radius_needs_no_extra_length()
+    {
+        double length = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 1.75, 0.0, out bool capped);
+        Assert.Equal(10.0 * 1.05, length, 9);
+        Assert.False(capped);
+    }
+
+    [Fact]
+    public void A_straighter_tube_never_needs_to_be_longer()
+    {
+        double previous = double.MaxValue;
+        for (int i = 0; i <= 20; i++)
+        {
+            double length = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 1.0 - i * 0.05, out bool _);   // Straighter with every step.
+            Assert.True(length <= previous + 1e-9);
+            previous = length;
+        }
+    }
+
+    [Fact]
+    public void A_straighter_tube_needs_less_length_for_a_wide_part()
+    {
+        double bubble = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 1.0, out bool _);
+        double half = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 0.5, out bool _);
+        Assert.True(half < bubble);
+    }
+
+    [Fact]
+    public void A_part_far_too_wide_for_the_tube_is_capped_and_left_poking_out()
+    {
+        double length = CrunchMath.TubeRequiredLength(10.0, 5.0, 1.0, 1.75, 1.0, out bool capped);
+        Assert.Equal(17.5, length, 9);
+        Assert.True(capped);
+    }
+
+    [Fact]
+    public void A_part_behind_the_ring_needs_no_length()
+        => Assert.Equal(0.0, CrunchMath.TubeRequiredLength(-3.0, 0.5, 1.0, 1.75, 1.0, out bool _), 9);
+
     // ---- Arrival ----
 
     [Fact]

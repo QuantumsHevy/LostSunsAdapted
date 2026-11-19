@@ -37,8 +37,10 @@ namespace CrunchDrives
         public const double GlowFadeSeconds = 5.0;          // The part's emissive glow fades back to grey over this long after a crunch (or a cancelled spool).
 
         // ---- Tube of light (the blinding white tube around the craft while a crunch field is up) ----
-        // Shape and size are fixed in CrunchTube: an ellipse that reaches at least 1 m past the craft's ends and at least one ring diameter from the ring.
+        // Its size is fixed in CrunchTube: it reaches at least 1 m past the craft's ends and at least one ring diameter from the ring. Its curve and fade are set below.
         public const double TubeRadiusFactor = 1.125;               // Tube radius = the ring's outer radius x this.
+        public const double TubeCurve = 1.0;                        // How much the tube closes in toward its ends, 0..1: 0 = a straight tube of the ring's radius, 1 = the bubble-like ellipse closing to a point. Both ends are the same.
+        public const double TubeFadeStart = 0.0;                    // Where the tube starts to fade out along its length, 0..2: 0 = at the ring itself (part of the craft shows through), 1 = once it has cleared the craft's outermost point, 2 = never (a solid tube that cuts off at its end). Both ends are the same.
         public const int TubeSegments = 24;                         // Sides of the tube.
         public const int TubeRings = 12;                            // Rings along each half of the tube, so the curve is smooth.
         public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: dark at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.

@@ -115,6 +115,62 @@ namespace CrunchDrives.Core
             return Math.Min(1.0, Math.Log(1.0 + speedC) / Math.Log(1.0 + topC));
         }
 
+        // ---- Tube of light: its shape ----
+
+        // The tube's radius at u (0 at the ring, 1 at the tip) as a share of the ring's radius. With curve 1 it is an ellipse (widest at
+        // the ring, closing to a point at the tip); with curve 0 it is a straight tube of the ring's radius; in between the two are
+        // mixed in a straight line.
+        public static double TubeRadiusScale(double u, double curve)
+        {
+            u = Math.Max(0.0, Math.Min(1.0, u));
+            curve = Math.Max(0.0, Math.Min(1.0, curve));
+            double bubble = Math.Sqrt(1.0 - u * u);
+            return 1.0 + (bubble - 1.0) * curve;
+        }
+
+        // Opacity along the tube: fully opaque from the ring out to 'solid', then easing to nothing at 'length'. A solid distance at or
+        // past the length leaves the tube fully opaque, cut off at its end.
+        public static double TubeEndAlpha(double distance, double solid, double length)
+        {
+            if (distance <= solid) return 1.0;
+            if (distance >= length) return 0.0;
+            double t = (distance - solid) / (length - solid);
+            return 1.0 - t * t * (3.0 - 2.0 * t);
+        }
+
+        // Where the tube starts to fade out, measured from the ring, from the player's fade-start setting (0..2) and the craft's reach
+        // (the farthest of its two ends from the ring): 0 fades from the ring itself, 1 stays solid to the craft's outermost point
+        // (never closer than 5% of the length to the tip), and 2 never fades, so the tube is solid and cut off at its end.
+        public static double TubeSolidDistance(double craftExtent, double length, double fadeStart)
+        {
+            double f = Math.Max(0.0, Math.Min(2.0, fadeStart));
+            double extent = Math.Min(Math.Max(craftExtent, 0.0), length * 0.95);
+            if (f <= 1.0) return extent * f;
+            return extent + (length - extent) * (f - 1.0);
+        }
+
+        // How long a tube must be for a point 'along' the axis and 'radial' from it to be inside it, for the given curve.
+        // The result is never more than maxFactor x 'along': a part much wider than the ring would otherwise ask for a tube
+        // many times the craft's length, so it is left poking out of the tube instead (capped is true then).
+        public static double TubeRequiredLength(double along, double radial, double ringRadius, double maxFactor, double curve, out bool capped, double margin = 1.05)
+        {
+            capped = false;
+            if (along <= 0.0) return 0.0;
+            curve = Math.Max(0.0, Math.Min(1.0, curve));
+            double ratio = Math.Min(radial / ringRadius, 0.98);
+            double reach = 1.0;   // Share of the length at which the tube is as narrow as the point is wide.
+            double tip = 1.0 - curve;   // The tube's radius at its tip, as a share of the ring's.
+            if (curve > 0.0 && ratio > tip)
+            {
+                double s = Math.Min((ratio - tip) / curve, 1.0);
+                reach = Math.Sqrt(1.0 - s * s);
+            }
+            reach = Math.Max(reach, 1e-4);
+            double length = along / reach * margin;
+            if (length > along * maxFactor) { capped = true; return along * maxFactor; }
+            return length;
+        }
+
         // ---- Arrival ----
 
         // Speed (m/s) needed to escape a body's gravity from the given distance from its center.
