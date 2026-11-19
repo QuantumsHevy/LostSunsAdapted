@@ -219,6 +219,89 @@ public class CrunchMathTests
     public void A_fixed_time_leg_ignores_the_shortest_leg_rule()
         => Assert.Equal(237.5, CrunchMath.LegSpeed(250.0, 250.0, 5.0, 0.0, 100.0, 0.1), 9);
 
+    // ---- Effects: tube brightness and field pitch ----
+
+    [Fact]
+    public void The_tube_is_dark_at_rest()
+    {
+        Assert.Equal(0.0, CrunchMath.SpeedIntensity(0.0, 1.0), 9);
+        Assert.Equal(0.0, CrunchMath.SpeedIntensity(-3.0, 1.0), 9);
+        Assert.Equal(0.0, CrunchMath.SpeedIntensity(double.NaN, 1.0), 9);
+    }
+
+    [Fact]
+    public void The_tube_brightens_in_a_straight_line_up_to_full_at_1c()
+    {
+        Assert.Equal(0.25, CrunchMath.SpeedIntensity(0.25, 1.0), 9);
+        Assert.Equal(0.5, CrunchMath.SpeedIntensity(0.5, 1.0), 9);
+        Assert.Equal(1.0, CrunchMath.SpeedIntensity(1.0, 1.0), 9);
+    }
+
+    [Fact]
+    public void The_tube_stays_at_full_brightness_above_1c()
+    {
+        Assert.Equal(1.0, CrunchMath.SpeedIntensity(1.5, 1.0), 9);
+        Assert.Equal(1.0, CrunchMath.SpeedIntensity(250.0, 1.0), 9);
+    }
+
+    [Fact]
+    public void The_tube_reaches_full_brightness_at_the_speed_it_is_given()
+    {
+        Assert.Equal(0.5, CrunchMath.SpeedIntensity(2.0, 4.0), 9);
+        Assert.Equal(1.0, CrunchMath.SpeedIntensity(4.0, 4.0), 9);
+    }
+
+    [Fact]
+    public void Any_movement_is_full_brightness_when_no_full_speed_is_set()
+    {
+        Assert.Equal(1.0, CrunchMath.SpeedIntensity(0.01, 0.0), 9);
+        Assert.Equal(0.0, CrunchMath.SpeedIntensity(0.0, 0.0), 9);
+    }
+
+    [Fact]
+    public void A_faster_crunch_is_never_dimmer()
+    {
+        double previous = 0.0;
+        for (int i = 0; i <= 400; i++)
+        {
+            double b = CrunchMath.SpeedIntensity(i * 0.01, 1.0);
+            Assert.True(b >= previous - 1e-12);
+            previous = b;
+        }
+    }
+
+    [Fact]
+    public void The_field_is_at_the_lowest_pitch_at_rest_and_the_highest_at_the_drives_top_speed()
+    {
+        Assert.Equal(0.0, CrunchMath.SpeedPitchFraction(0.0, 250.0), 9);
+        Assert.Equal(1.0, CrunchMath.SpeedPitchFraction(250.0, 250.0), 9);
+        Assert.Equal(1.0, CrunchMath.SpeedPitchFraction(900.0, 250.0), 9);
+    }
+
+    [Fact]
+    public void Sublight_speeds_are_audible_in_the_pitch_of_a_250c_drive()
+        => Assert.InRange(CrunchMath.SpeedPitchFraction(1.0, 250.0), 0.12, 0.13);
+
+    [Fact]
+    public void The_same_speed_is_higher_pitched_on_a_slower_drive()
+        => Assert.True(CrunchMath.SpeedPitchFraction(1.0, 2.5) > CrunchMath.SpeedPitchFraction(1.0, 250.0));
+
+    [Fact]
+    public void A_faster_crunch_is_never_lower_pitched()
+    {
+        double previous = 0.0;
+        for (int i = 0; i <= 500; i++)
+        {
+            double f = CrunchMath.SpeedPitchFraction(i * 0.5, 250.0);
+            Assert.True(f >= previous - 1e-12);
+            previous = f;
+        }
+    }
+
+    [Fact]
+    public void A_drive_with_no_top_speed_has_no_pitch_change()
+        => Assert.Equal(0.0, CrunchMath.SpeedPitchFraction(5.0, 0.0), 9);
+
     // ---- Arrival ----
 
     [Fact]

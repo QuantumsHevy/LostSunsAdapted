@@ -29,7 +29,7 @@ namespace CrunchDrives
         // ---- Sound cues ----
         public const double CueHoldSeconds = 6.4;           // One-shot cues are held on this long, then reset so they can play again. Set it to the length of your longest one-shot clip.
         public const double SpoolPitchRiseSeconds = 2.5;    // The spool loop's pitch rises from SpoolPitchStart to normal over this long after the spool starts.
-        public const double SpoolPitchFallSeconds = 1.5;    // When the spool ends without an engage (ready, or cancelled), the spool loop's pitch falls to SpoolPitchFloor over this long, then stops. After an engage it falls over TubeFadeInSeconds instead.
+        public const double SpoolPitchFallSeconds = 1.5;    // When the spool ends without an engage (ready, or cancelled), the spool loop's pitch falls to SpoolPitchFloor over this long, then stops. After an engage it falls over the same time, so it ends as the craft starts to move.
         public const double SpoolPitchStart = 0.5;          // Pitch at the start of the spool.
         public const double SpoolPitchFloor = 0.25;         // Pitch the spool loop falls to as the field forms, before it ends. Must match the low end of the cue's pitch curve in the part's config.
 
@@ -41,8 +41,8 @@ namespace CrunchDrives
         public const double TubeRadiusFactor = 1.125;               // Tube radius = the ring's outer radius x this.
         public const int TubeSegments = 24;                         // Sides of the tube.
         public const int TubeRings = 12;                            // Rings along each half of the tube, so the curve is smooth.
-        public const double TubeFadeInSeconds = 0.25;               // The tube grows from the ring to its full length, and fades in, over this long when the field forms. The craft waits this long before it starts to move, so the tube is at full length first.
-        public const double TubeFadeOutSeconds = 1.25;              // The tube shrinks back to the ring, and fades out, over this long when the field is down.
+        public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: dark at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
+        public const double TubeFadeOutSeconds = 1.25;              // The tube shrinks back to the ring, and fades out from the brightness it had, over this long when the field is down.
         public const double TubeFitMaxFactor = 1.75;                // The tube is lengthened to cover wide parts far from the ring, but never past this x that part's distance from the ring. Parts wider than that stick out.
         public const double TubeLightIntensity = 2.5;               // Point light at the ring, part of the same effect.
         public const double TubeLightRangeFactor = 1.25;            // The light reaches this x the craft's length.

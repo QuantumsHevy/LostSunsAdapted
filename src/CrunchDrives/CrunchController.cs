@@ -16,7 +16,6 @@ namespace CrunchDrives
         public static void PrimaryAction() { if (instance != null) instance.DoPrimary(); }
         public static void Cancel() { if (instance != null) instance.DoCancel(); }
 
-        public static double FieldHoldRemaining { get { return instance != null ? System.Math.Max(0.0, instance.fieldHold) : 0.0; } }   // Seconds left of the pause at the start of a leg, while the tube forms.
         public static bool IsTurning { get { return instance != null && instance.turning; } }
 
         // Readouts for the part's right-click menu.
@@ -114,7 +113,6 @@ namespace CrunchDrives
         bool turnFallback;          // The attitude controller couldn't steer this craft; SAS does the turn instead.
         double lastUt = -1.0;       // Universal time at the last crunch tick, for crunches under time warp.
         bool turnSpooling;          // The second leg's Casimir blades are spinning up.
-        double fieldHold;           // Seconds the craft still waits at the start of a leg while the tube of light grows.
         bool legClosedLoop;         // This leg's length follows the (moving) distance to the stopping point.
         double legEndFraction;      // Share of the starting stop distance still left when this leg ends.
         double legEndStop = -1.0;   // Stop distance at which this leg should end (set on its first tick), or -1.
@@ -748,7 +746,6 @@ namespace CrunchDrives
             lastBodyName = v.mainBody.name;
             elapsed = 0;
             traveled = 0;
-            fieldHold = CrunchTuning.TubeFadeInSeconds;   // The craft stays put while the tube of light grows to its full length.
             ResetWindow(v);
             phase = CrunchPhase.Crunching;
 
@@ -1001,7 +998,6 @@ namespace CrunchDrives
             crunchBackwards = true;
             latchedHeading = dir;
             elapsed = 0.0;
-            fieldHold = CrunchTuning.TubeFadeInSeconds;
             lastUt = -1.0;
             leg = 2;
             turning = false;
@@ -1551,9 +1547,6 @@ namespace CrunchDrives
 
             // While the field is up the craft can't be steered or spun.
             LockOutRotation(v);
-
-            // The field forms first: the craft doesn't move until the tube of light has reached its full length.
-            if (fieldHold > 0.0) { fieldHold -= dt; return; }
 
             // Game seconds this tick: one physics step normally, more under time warp.
             double ut = Planetarium.GetUniversalTime();

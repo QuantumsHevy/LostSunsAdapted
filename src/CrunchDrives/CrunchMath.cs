@@ -95,6 +95,26 @@ namespace CrunchDrives.Core
             return minC + (maxC - minC) * t;
         }
 
+        // ---- Effects: how bright the tube of light is, and how high the field's sound is pitched, at a given live speed ----
+
+        // Brightness (0..1) of the tube of light at a live speed: nothing at rest, rising in a straight line to full at fullAtC
+        // (1c) and staying full above it. A fullAtC of zero or less makes any movement at all full brightness.
+        public static double SpeedIntensity(double speedC, double fullAtC)
+        {
+            if (!(speedC > 0.0)) return 0.0;
+            if (!(fullAtC > 0.0)) return 1.0;
+            return Math.Min(1.0, speedC / fullAtC);
+        }
+
+        // Where a live speed sits between rest (0) and the drive's top speed topC (1), on a logarithmic scale, so the sublight
+        // part of the range is as audible as the part far above it (on a straight line 1c is 0.4% of 250c and would not
+        // be heard). Used to pitch the crunch field's sound.
+        public static double SpeedPitchFraction(double speedC, double topC)
+        {
+            if (!(speedC > 0.0) || !(topC > 0.0)) return 0.0;
+            return Math.Min(1.0, Math.Log(1.0 + speedC) / Math.Log(1.0 + topC));
+        }
+
         // ---- Arrival ----
 
         // Speed (m/s) needed to escape a body's gravity from the given distance from its center.

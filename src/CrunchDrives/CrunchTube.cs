@@ -6,8 +6,9 @@ namespace CrunchDrives
     // The blinding white tube around the craft while a crunch field is up: a spindle along the ring's axis, widest at the
     // ring and closing to a point past each end of the craft, with soft layers around it that blur its edge. It is solid
     // white over the whole craft and starts to fade out exactly at the craft's outermost points (no padding past them),
-    // easing to nothing at the tips instead of cutting off. It grows from the ring to its full length as it fades in, and
-    // shrinks back as it fades out. The flash, the tube and its light are one effect: all on, or all off. While the field is
+    // easing to nothing at the tips instead of cutting off. It is at its full length the moment the field forms, and its
+    // brightness follows the craft's live speed (dark at rest, full from 1c up). When the field is down it shrinks back to the
+    // ring and fades out. The flash, the tube and its light are one effect: all on, or all off. While the field is
     // up the tube's length pulses with the flicker (it only ever stretches past its measured length, never shrinks below it,
     // so the craft stays covered), and however small the craft, each end of the tube is at least one ring diameter long.
     //
@@ -365,12 +366,14 @@ namespace CrunchDrives
 
         // on is true for as long as the crunch field is up, and only then. Call every frame (LateUpdate suits it best: the flash
         // turns to face the camera, which has finished moving by then); it allocates nothing.
-        // The tube grows from the ring to its full length as it fades in, and shrinks back to the ring as it fades out (the whole
-        // tube's opacity follows the same 0..1 level as its length). Each time on changes, the flash goes off.
-        public void Tick(float dt, bool on)
+        // The tube is at its full length while the field is up, and its brightness is 'intensity' (0..1, from the craft's live speed:
+        // dark at rest, full at 1c and above). When the field goes down it shrinks back to the ring and fades out from the brightness
+        // it had, so pass the last intensity while on is false. Each time on changes, the flash goes off, whatever the brightness.
+        public void Tick(float dt, bool on, float intensity)
         {
             if (root == null) return;
             if (!built) on = false;   // Nothing to show until a spool has measured the craft.
+            intensity = Mathf.Clamp01(intensity);
 
             if (on != wasOn)          // The craft has just entered or left the crunch field.
             {
@@ -378,11 +381,17 @@ namespace CrunchDrives
                 flashClock = 0f;
             }
 
-            float fadeSeconds = on ? (float)CrunchTuning.TubeFadeInSeconds : (float)CrunchTuning.TubeFadeOutSeconds;
-            float step = fadeSeconds > 0f ? dt / fadeSeconds : 1f;
-            level = Mathf.MoveTowards(level, on ? 1f : 0f, step);
+            if (on)
+            {
+                level = 1f;
+            }
+            else
+            {
+                float fadeSeconds = (float)CrunchTuning.TubeFadeOutSeconds;
+                level = Mathf.MoveTowards(level, 0f, fadeSeconds > 0f ? dt / fadeSeconds : 1f);
+            }
 
-            float fade = level * level;   // Opacity drops faster than the length, so no bright stub is left as the tube shrinks.
+            float fade = level * level * intensity;   // Opacity drops faster than the length as it shrinks, so no bright stub is left.
             bool visible = fade > 0.0005f;
             float flash = TickFlash(dt);
             SetShown(visible, flash > 0f);
@@ -394,7 +403,7 @@ namespace CrunchDrives
             float shade = 0f;
             if (visible)
             {
-                // Flicker: the whole tube and its light waver while the field is up. It dies away with the fade.
+                // Flicker: the whole tube and its light waver while the field is up. It dies away with the brightness.
                 clock += dt;
                 float hz = (float)CrunchTuning.TubeFlickerHz;
                 float amount = (float)CrunchTuning.TubeFlickerAmount;

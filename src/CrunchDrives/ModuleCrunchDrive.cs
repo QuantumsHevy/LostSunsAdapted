@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CrunchDrives.Core;
 using UnityEngine;
 
 namespace CrunchDrives
@@ -201,6 +202,7 @@ namespace CrunchDrives
         // The tube of light, parented to this part. Only the primary drive shows one.
         CrunchTube tube;
         bool tubeWasSpooling;
+        float tubeIntensity;        // The tube's brightness (0..1) at the last tick of the crunch field, kept while the field is down.
 
         // Emissive glow: the part's own materials that have an emissive colour are set directly, from 0 (grey) to 1 (full glow).
         // No ModuleColorChanger (or any other glow module) is involved, so nothing else can fight over the value.
@@ -211,6 +213,7 @@ namespace CrunchDrives
         float glowSent = -1f;
 
         CrunchPhase lastPhase = CrunchPhase.Idle;
+        const float FieldPitchFloorPower = 0.05f;   // Power that gives the field loop's lowest pitch (at 0c); the cue's pitch curve in the part's config starts here.
         const float SpoolPitchFloorPower = 0.05f;   // Power that gives the lowest pitch; the cue's pitch curve in the part's config starts here.
         float spoolPitch = 1f;      // The pitch the spool loop had while the spool ran.
         float spoolFallStart = -1f; // When the loop began to fall (unscaled time); -1 = not falling.
@@ -218,6 +221,7 @@ namespace CrunchDrives
         float spoolFallSeconds;
         float spoolPower = -1f;   // The power last sent to the spool cue (it drives the cue's pitch); -1 = none yet.
         bool wasField;
+        float fieldPower = -1f;   // The power last sent to the field cue (it drives the cue's pitch); -1 = none yet.
         bool menuDirty;                                                          // A field was shown or hidden; the open menu must be rebuilt.
         static float lastMenuRefresh = -10f;
         const float MenuRefreshGapSeconds = 0.25f;                               // Never rebuild the menu more often than this, whatever changes.
@@ -303,7 +307,7 @@ namespace CrunchDrives
                 SetEventsActive(ButtonEvents, false);
                 StopLoops();
                 ReleaseCues();
-                if (tube != null) tube.Tick(Time.deltaTime, false);
+                if (tube != null) tube.Tick(Time.deltaTime, false, tubeIntensity);
                 tubeWasSpooling = false;
                 lastPhase = phase;
                 RefreshMenuIfNeeded();
@@ -381,8 +385,9 @@ namespace CrunchDrives
             bool showDirection = !crunching && !(twoLeg && hasTarget);   // The automatic approach with a target picks the directions itself.
             if (dir.active != showDirection) { dir.active = showDirection; menuDirty = true; }
 
-            UpdateSounds(phase, spooling, field);
-            UpdateTube(spooling, field);
+            double speedC = CrunchController.LiveSpeedC;
+            UpdateSounds(phase, spooling, field, speedC);
+            UpdateTube(spooling, field, speedC);
             lastPhase = phase;
             RefreshMenuIfNeeded();
         }
@@ -452,9 +457,11 @@ namespace CrunchDrives
 
         // ---- Tube of light ----
         // Shown for exactly as long as the crunch field is up: from engage until dropout, and not during the mid-course turn.
+        // Its brightness follows the live speed (dark at 0c, full at CrunchTuning.TubeFullBrightnessC and above). The last brightness
+        // is kept while the field is down, so the tube fades out from where it was.
         // The craft is measured at the start of every spool, so the tube is ready when the field forms.
 
-        void UpdateTube(bool spooling, bool field)
+        void UpdateTube(bool spooling, bool field, double speedC)
         {
             if (tube == null) return;
 
@@ -463,7 +470,8 @@ namespace CrunchDrives
             if (spooling && !tubeWasSpooling && (!CrunchController.IsTurning || !tube.IsBuilt)) tube.Measure(part, vessel);
             tubeWasSpooling = spooling;
 
-            tube.Tick(Time.deltaTime, field);
+            if (field) tubeIntensity = (float)CrunchMath.SpeedIntensity(speedC, CrunchTuning.TubeFullBrightnessC);
+            tube.Tick(Time.deltaTime, field, tubeIntensity);
         }
 
         // ---- Settings sync ----
@@ -528,7 +536,7 @@ namespace CrunchDrives
         // Each cue is an entry in the part's EFFECTS block, started with Part.Effect(name, 1) and stopped with 0.
         // Loops stay on until switched off. One-shots are switched off again after CrunchTuning.CueHoldSeconds, so they can play again.
 
-        void UpdateSounds(CrunchPhase phase, bool spooling, bool field)
+        void UpdateSounds(CrunchPhase phase, bool spooling, bool field, double speedC)
         {
             ReleaseCues();
 
@@ -536,18 +544,34 @@ namespace CrunchDrives
 
             if (field != wasField)
             {
-                part.Effect(FxField, field ? 1f : 0f);
                 OneShot(field ? FxEngage : FxCollapse);
                 wasField = field;
+                if (!field) { part.Effect(FxField, 0f); fieldPower = -1f; }
             }
+            UpdateFieldCue(field, speedC);
 
             if (lastPhase == CrunchPhase.Spooling && phase == CrunchPhase.Ready) OneShot(FxReady);
         }
 
+        // The field loop plays while the crunch field is up, and its pitch follows the live speed: the lowest at 0c, the highest at the
+        // drive's top speed, on a logarithmic scale (CrunchMath.SpeedPitchFraction). Like the spool loop, the pitch is carried by the power
+        // sent to the cue (0.05 to 1; 0 stops it), and the cue's pitch curve in the part's config maps that power to the pitch.
+        void UpdateFieldCue(bool field, double speedC)
+        {
+            if (!field) return;
+
+            float fraction = (float)CrunchMath.SpeedPitchFraction(speedC, Stats.MaxSpeedC);
+            float power = FieldPitchFloorPower + (1f - FieldPitchFloorPower) * fraction;
+            if (fieldPower < 0f || Mathf.Abs(power - fieldPower) > 0.004f)
+            {
+                part.Effect(FxField, power);
+                fieldPower = power;
+            }
+        }
+
         // The spool loop plays from the start of a spool: its pitch rises over the first moments and holds at normal while the
         // spool runs. When the spool ends (the ready cue plays, or the player engages straight from the spool, or it is cancelled)
-        // the pitch falls to the floor and the loop stops. After an engage the fall takes as long as the tube takes to grow, so the
-        // loop ends as the craft starts to move; otherwise it takes CrunchTuning.SpoolPitchFallSeconds. The pitch is carried by the
+        // the pitch falls to the floor and the loop stops, over CrunchTuning.SpoolPitchFallSeconds. The pitch is carried by the
         // power sent to the cue (0.05 to 1; 0 stops it), and the cue's pitch curve in the part's config maps that power to the pitch.
         void UpdateSpoolCue(CrunchPhase phase, bool spooling, bool field)
         {
@@ -571,7 +595,7 @@ namespace CrunchDrives
                 {
                     spoolFallStart = Time.unscaledTime;
                     spoolFallFrom = spoolPitch;
-                    spoolFallSeconds = (float)(field ? CrunchTuning.TubeFadeInSeconds : CrunchTuning.SpoolPitchFallSeconds);
+                    spoolFallSeconds = (float)CrunchTuning.SpoolPitchFallSeconds;
                 }
                 float done = spoolFallSeconds > 0f ? Mathf.Clamp01((Time.unscaledTime - spoolFallStart) / spoolFallSeconds) : 1f;
                 if (done < 1f) pitch = Mathf.Lerp(spoolFallFrom, floor, done);
@@ -616,6 +640,7 @@ namespace CrunchDrives
             if (spoolPower >= 0f) { part.Effect(FxSpool, 0f); spoolPower = -1f; }
             spoolFallStart = -1f;
             if (wasField) { part.Effect(FxField, 0f); wasField = false; }
+            fieldPower = -1f;
         }
 
         // ---- Editor info ----
