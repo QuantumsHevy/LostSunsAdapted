@@ -1,6 +1,6 @@
 namespace CrunchDrives
 {
-    public enum TravelMode { FullDistance, HalfDistance, FixedDuration }
+    public enum TravelMode { TwoLeg, OneLeg, FixedDuration }
 
     public static class CrunchTuning
     {
@@ -100,10 +100,9 @@ namespace CrunchDrives
         public const double InterceptMaxDistance = 1000000.0;   // Farther than this from the target craft (m), the craft is captured by the body instead.
 
         // ---- Player controls (live values; the primary crunch drive copies its craft settings here, and the debug window sets UseTurnController and AllowWarp) ----
-        public static TravelMode Mode = TravelMode.FullDistance;    // Single-leg crunches only; a two-leg crunch plans its own distances.
-        public static double CrunchSeconds = 10.0;                  // Duration in FixedDuration mode (single-leg crunches only).
+        public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. FixedDuration: a single manual crunch of CrunchSeconds. TwoLeg and OneLeg need a target.
+        public static double CrunchSeconds = 10.0;                  // Duration in FixedDuration mode.
         public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
-        public static bool TwoLegManeuver = true;                   // Crunch to a planet, moon or craft in two legs: forward halfway, flip, backward the rest.
         public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.
         public static bool AllowWarp = true;                        // The spool and long crunches may run under time warp. EXPERIMENTAL.
         public static bool SasRetrograde = true;                    // On arrival, set SAS to retrograde (only if SAS is on). The craft is never rotated by force.

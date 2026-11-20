@@ -102,14 +102,13 @@ namespace CrunchDrives
         public const string SliderDuration = "Fixed-time Field Duration (s)";
         public const string LabelTier = "Crunch Coefficient: {0:G3}c";
 
-        public static readonly string[] ModeNames = { "Full-Distance", "Half-Distance", "Fixed-Time" };
+        public static readonly string[] ModeNames = { "Two-Leg", "One-Leg", "Fixed-Time" };   // In the order of the TravelMode enum.
 
         // Settings (part menu)
         public const string ToggleCaptureAssist = "Use Capture Assistance";
         public const string ToggleSasRetrograde = "Use Capture Facilitation";
         public const string ToggleTurnController = "Use MechJeb2-Derived Attitude Controller";
         public const string ToggleCrunchWarp = "Allow time warp (EXPERIMENTAL)";
-        public const string ToggleTwoLeg = "Use Automatic Approach";
         public const string ToggleLoosenStart = "Loosen Start Conditions";
 
         public static string DirLong(bool backwards) { return backwards ? "AFT" : "FORE"; }         // buttons

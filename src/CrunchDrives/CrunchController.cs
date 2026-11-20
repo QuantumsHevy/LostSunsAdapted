@@ -237,27 +237,22 @@ namespace CrunchDrives
                                                stats.MinSpoolSeconds, stats.MaxSpoolSeconds);
         }
 
-        // How the first leg is sized: a length in meters or, in Fixed-time mode, a time.
+        // How the first leg is sized: a length in meters or, in Fixed-time mode, a time. Two-leg mode (with a target) covers half the
+        // distance to the stopping point in the first leg, and one-leg mode all of it.
         static void LegSizing(bool locked, ITargetable target, double targetDistance,
                               out bool twoLegPlan, out double meters, out double fixedSeconds)
         {
-            twoLegPlan = locked && CrunchTuning.TwoLegManeuver;
+            twoLegPlan = locked && CrunchTuning.Mode == TravelMode.TwoLeg;
             meters = 0.0;
             fixedSeconds = 0.0;
 
-            if (twoLegPlan)
-            {
-                meters = StopDistance(target, targetDistance) * 0.5;
-            }
-            else if (CrunchTuning.Mode != TravelMode.FixedDuration)
-            {
-                if (!locked) return;   // Needs a target; the caller refuses.
-                meters = StopDistance(target, targetDistance);
-                if (CrunchTuning.Mode == TravelMode.HalfDistance) meters *= 0.5;
-            }
-            else
+            if (CrunchTuning.Mode == TravelMode.FixedDuration)
             {
                 fixedSeconds = CrunchTuning.CrunchSeconds;
+            }
+            else if (locked)   // Without a target the caller refuses.
+            {
+                meters = StopDistance(target, targetDistance) * (twoLegPlan ? 0.5 : 1.0);
             }
         }
 
@@ -695,8 +690,8 @@ namespace CrunchDrives
             plan.duration = duration;
             plan.ramp = ramp;
             plan.warpOk = warpOk;
-            plan.closedLoop = locked && (twoLegPlan || CrunchTuning.Mode != TravelMode.FixedDuration);
-            plan.endFraction = (twoLegPlan || (CrunchTuning.Mode == TravelMode.HalfDistance)) ? 0.5 : 0.0;
+            plan.closedLoop = locked && CrunchTuning.Mode != TravelMode.FixedDuration;
+            plan.endFraction = twoLegPlan ? 0.5 : 0.0;
             return true;
         }
 

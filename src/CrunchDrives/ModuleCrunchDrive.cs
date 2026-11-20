@@ -176,10 +176,6 @@ namespace CrunchDrives
          UI_FloatRange(minValue = 1f, maxValue = 120f, stepIncrement = 1f, scene = UI_Scene.Editor)]
         public float crunchSeconds = 10f;
 
-        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.ToggleTwoLeg, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
-         UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
-        public bool twoLeg = true;
-
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.ToggleCaptureAssist, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
         public bool captureAssist = true;
@@ -326,6 +322,7 @@ namespace CrunchDrives
             bool field = crunching && !turning;
             bool hasTarget = CrunchController.TargetName.Length > 0;
             bool fixedTime = ModeIndex() == (int)TravelMode.FixedDuration;
+            bool twoLeg = ModeIndex() == (int)TravelMode.TwoLeg;
             bool dropoutKnown = CrunchController.DropoutBodyName.Length > 0;
 
             // ---- Readouts: crunch field ----
@@ -386,7 +383,7 @@ namespace CrunchDrives
 
             BaseEvent dir = Events[nameof(DirectionEvent)];
             dir.guiName = CrunchText.ButtonDirection(backwards);
-            bool showDirection = !crunching && !(twoLeg && hasTarget);   // The automatic approach with a target picks the directions itself.
+            bool showDirection = !crunching && !(twoLeg && hasTarget);   // The two-leg maneuver with a target picks the directions itself.
             if (dir.active != showDirection) { dir.active = showDirection; menuDirty = true; }
 
             double speedC = CrunchController.LiveSpeedC;
@@ -489,7 +486,6 @@ namespace CrunchDrives
             CrunchTuning.Backwards = backwards;
             CrunchTuning.Mode = (TravelMode)ModeIndex();
             CrunchTuning.CrunchSeconds = crunchSeconds;
-            CrunchTuning.TwoLegManeuver = twoLeg;
             CrunchTuning.CaptureAssist = captureAssist;
             CrunchTuning.LoosenStart = loosenStart;
             CrunchTuning.SasRetrograde = sasRetrograde;
