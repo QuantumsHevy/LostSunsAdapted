@@ -184,6 +184,10 @@ namespace CrunchDrives
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
         public bool captureAssist = true;
 
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.ToggleLoosenStart, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
+         UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
+        public bool loosenStart = false;
+
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.ToggleSasRetrograde, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
         public bool sasRetrograde = true;
@@ -487,6 +491,7 @@ namespace CrunchDrives
             CrunchTuning.CrunchSeconds = crunchSeconds;
             CrunchTuning.TwoLegManeuver = twoLeg;
             CrunchTuning.CaptureAssist = captureAssist;
+            CrunchTuning.LoosenStart = loosenStart;
             CrunchTuning.SasRetrograde = sasRetrograde;
         }
 

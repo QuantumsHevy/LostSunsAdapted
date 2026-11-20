@@ -433,6 +433,41 @@ public class CrunchMathTests
     public void A_part_behind_the_ring_needs_no_length()
         => Assert.Equal(0.0, CrunchMath.TubeRequiredLength(-3.0, 0.5, 1.0, 1.75, 1.0, out bool _), 9);
 
+    // ---- Dropout zones: starting inside one ----
+
+    [Fact]
+    public void A_craft_inside_a_zone_heading_outward_moves_away_from_its_centre()
+        => Assert.True(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(1, 0, 0), new Vec3d(0, 0, 0)));
+
+    [Fact]
+    public void A_craft_inside_a_zone_heading_inward_does_not()
+        => Assert.False(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(-1, 0, 0), new Vec3d(0, 0, 0)));
+
+    [Fact]
+    public void A_craft_heading_sideways_counts_as_moving_away()
+        => Assert.True(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(0, 1, 0), new Vec3d(0, 0, 0)));
+
+    [Fact]
+    public void A_path_that_leaves_a_zone_it_started_in_never_comes_back_in()
+    {
+        var center = new Vec3d(0, 0, 0);
+        var heading = new Vec3d(0.6, 0.8, 0);
+        var start = new Vec3d(3e5, 4e5 * 0.5, 0);   // Inside a 1e6 m zone.
+        Assert.True(CrunchMath.MovesAwayFrom(start, heading, center));
+        Assert.Equal(0.0, CrunchMath.SweepEntry(start, start + heading * 1e5, center, 1e6));   // Starts inside: the scan would end the crunch at once.
+        var outside = start + heading * 2e6;
+        Assert.Null(CrunchMath.SweepEntry(outside, outside + heading * 1e9, center, 1e6));
+    }
+
+    [Fact]
+    public void A_path_heading_deeper_into_a_zone_is_a_hit_at_once()
+    {
+        var center = new Vec3d(0, 0, 0);
+        var start = new Vec3d(5e5, 0, 0);
+        Assert.False(CrunchMath.MovesAwayFrom(start, new Vec3d(-1, 0, 0), center));
+        Assert.Equal(0.0, CrunchMath.SweepEntry(start, new Vec3d(-1e9, 0, 0), center, 1e6));
+    }
+
     // ---- Arrival ----
 
     [Fact]

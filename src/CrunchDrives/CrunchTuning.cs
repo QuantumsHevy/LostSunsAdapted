@@ -21,7 +21,7 @@ namespace CrunchDrives
 
         // ---- Time warp ----
         // Time warp is allowed during every spool, including the second one between the legs (if the setting is on).
-        public const double WarpMinLegSeconds = 300.0;      // During the crunch itself, on-rails time warp is allowed only for legs at least this long.
+        public const double WarpMinLegSeconds = 45.0;       // During the crunch itself, on-rails time warp is allowed only for legs at least this long.
         public const double WarpFinalSeconds = 5.0;         // Time warp is back to 1x this many seconds before a crunch leg ends.
         public const double WarpSpoolFinalSeconds = 10.0;   // Time warp is back to 1x this many seconds before a spool ends.
         public const double WarpStepSeconds = 2.5;          // Before that, each warp rate lasts at most about this many real seconds.
@@ -107,6 +107,7 @@ namespace CrunchDrives
         public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.
         public static bool AllowWarp = true;                        // The spool and long crunches may run under time warp. EXPERIMENTAL.
         public static bool SasRetrograde = true;                    // On arrival, set SAS to retrograde (only if SAS is on). The craft is never rotated by force.
+        public static bool LoosenStart = false;                     // Loosen Start Conditions: a spool may start inside a dropout zone, inside an atmosphere, or when the craft is not pointing at the target, and a crunch may start inside a dropout zone or an atmosphere if it heads out of the dropout zone (the craft still has to be aligned to start the crunch). The second spool between the legs starts at once, while the craft is still turning, and the second leg waits until it is aligned.
         public static bool CaptureAssist = true;                    // On arrival, gradually slow/redirect the velocity until the craft is bound and clear of the surface (or on course to a targeted craft).
         public static double CaptureRampSeconds = 2.75;             // Duration of the velocity change; 0 applies it instantly.
     }

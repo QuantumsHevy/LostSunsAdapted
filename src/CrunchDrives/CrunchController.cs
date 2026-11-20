@@ -109,6 +109,7 @@ namespace CrunchDrives
         bool sasFailLogged;
         double turnLogTimer;
         double turnSettled;         // Seconds the craft has been aligned and nearly still.
+        readonly System.Collections.Generic.List<CelestialBody> departingZones = new System.Collections.Generic.List<CelestialBody>();   // Dropout zones the craft started this leg inside (Loosen Start Conditions), heading out of them. They are not scanned until the craft is clear.
         readonly TurnController turnCtl = new TurnController();
         bool turnFallback;          // The attitude controller couldn't steer this craft; SAS does the turn instead.
         double lastUt = -1.0;       // Universal time at the last crunch tick, for crunches under time warp.
@@ -578,14 +579,19 @@ namespace CrunchDrives
             if (!HasDrive(v)) { Refuse(CrunchText.RefuseNoDrive); return false; }
             if (EnginesThrusting(v)) { Refuse(CrunchText.RefuseEnginesActive); return false; }
             if (FlightGlobals.VesselsLoaded.Count > 1) { Refuse(CrunchText.RefuseOtherVessels); return false; }
-            if (v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth)
+            // Loosen Start Conditions lets a spool and a crunch start inside an atmosphere. A dropout zone reaches above the atmosphere,
+            // so the crunch must then head out of that zone (checked below).
+            if (v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth && !CrunchTuning.LoosenStart)
             { Refuse(CrunchText.RefuseAtmosphere); return false; }
 
+            // Starting inside a dropout zone is refused, unless Loosen Start Conditions is on: then a spool may start there, and a crunch
+            // may start there as long as it heads out of the zone (checked below, once the heading is known).
             Vector3d p = v.GetWorldPos3D();
+            bool loose = CrunchTuning.LoosenStart;
             foreach (CelestialBody b in FlightGlobals.Bodies)
             {
                 double r = DropoutRadius(b);
-                if ((p - b.position).sqrMagnitude < r * r)
+                if ((p - b.position).sqrMagnitude < r * r && !loose)
                 { Refuse(CrunchText.RefuseZone(b.name)); return false; }
             }
 
@@ -609,7 +615,8 @@ namespace CrunchDrives
                 {
                     Vector3d dir = to.normalized;
                     double err = AngleDeg(axis, dir);
-                    if (err > stats.TargetAlignToleranceDeg)
+                    // Loosened, the spool may start with the craft pointing anywhere; only the crunch itself needs it aligned.
+                    if (err > stats.TargetAlignToleranceDeg && (engaging || !loose))
                     { Refuse(CrunchText.RefuseNotAligned(err, stats.TargetAlignToleranceDeg)); return false; }
 
                     locked = true;
@@ -619,6 +626,17 @@ namespace CrunchDrives
                     if (announce)
                         Debug.Log(string.Format("[CrunchDrive] Target lock: {0} distance={1:E3}m alignment={2:F2}deg",
                             targetName, targetDistance, err));
+                }
+            }
+
+            // Loosened, a crunch may leave a dropout zone it starts in, but not head deeper into it.
+            if (loose && engaging)
+            {
+                foreach (CelestialBody b in FlightGlobals.Bodies)
+                {
+                    double r = DropoutRadius(b);
+                    if ((p - b.position).sqrMagnitude < r * r && !CrunchMath.MovesAwayFrom(V(p), V(heading), V(b.position)))
+                    { Refuse(CrunchText.RefuseZoneInward(b.name)); return false; }
                 }
             }
 
@@ -747,12 +765,34 @@ namespace CrunchDrives
             elapsed = 0;
             traveled = 0;
             ResetWindow(v);
+            NoteDepartingZones(v);
             phase = CrunchPhase.Crunching;
 
             Debug.Log(string.Format("[CrunchDrive] Heading latched ({0:F4}, {1:F4}, {2:F4}) {3}{4}{5}",
                 latchedHeading.x, latchedHeading.y, latchedHeading.z, CrunchText.DirShort(crunchBackwards),
                 targetLocked ? " (target lock)" : "", twoLeg ? " (leg 1 of 2)" : ""));
             Post(CrunchText.MsgEngaged(CrunchText.DirShort(crunchBackwards)));
+        }
+
+        // Loosen Start Conditions: the dropout zones the craft starts this leg inside are left out of the collision scan until the craft
+        // is clear of them (TryPlan has already refused a crunch that heads deeper into one). A straight path out of a sphere never
+        // comes back into it, so a zone is scanned again the moment the craft is outside it. This is checked by position, not by a
+        // time (the speed ramps up from nothing, so the craft barely moves in the shortest leg's length of time). The list is kept
+        // through the turn (the craft is still leaving) and is emptied when the crunch ends.
+        void NoteDepartingZones(Vessel v)
+        {
+            departingZones.Clear();
+            if (!CrunchTuning.LoosenStart) return;
+
+            Vector3d p = v.GetWorldPos3D();
+            foreach (CelestialBody b in FlightGlobals.Bodies)
+            {
+                double r = DropoutRadius(b);
+                if ((p - b.position).sqrMagnitude >= r * r) continue;
+                departingZones.Add(b);
+                Debug.Log(string.Format("[CrunchDrive] Loosened start: leaving {0}'s dropout zone ({1:N0} m from its centre, zone radius {2:N0} m); it is not scanned until the craft is clear.",
+                    b.name, (p - b.position).magnitude, r));
+            }
         }
 
         // ---- Between the legs: SAS turns the craft to face away from the target ----
@@ -864,14 +904,30 @@ namespace CrunchDrives
             Debug.Log("[CrunchDrive] SAS restored to its previous setting.");
         }
 
+        // Starts the second spool (between the legs). Returns false if the crunch ended instead: the craft is already at its stopping point.
+        bool BeginTurnSpool(Vessel v, double distance)
+        {
+            double remaining0 = StopDistance(lockedTarget, distance);
+            if (remaining0 <= 0.0) { End(StopAt(lockedTarget, lockedTargetName), true); return false; }
+
+            turnSpooling = true;
+            BeginSpool(v, firstSpoolSeconds);
+            Debug.Log(string.Format("[CrunchDrive] Second spool{5}: drawing {0:N0} EC/s for {1:F1} s to match the first leg's {2:G4}c, {3:N0} EC stored, {4:E3} m to go.",
+                spoolRate, firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), ReadStored(v), remaining0,
+                CrunchTuning.LoosenStart ? " (loosened: spooling while the craft is still turning)" : ""));
+            Post(CrunchText.MsgSpoolStart(firstSpoolSeconds));
+            return true;
+        }
+
         // One tick of the turn between the legs. Starts the second leg once the crunch axis (the tail)
         // points at the target within the alignment tolerance.
         void TickTurn(Vessel v, double dt)
         {
             // Time warp is locked out during the turn (see EnforceWarpLock), except during the second spool:
             // by then the craft is aligned with the target, and nothing needs steering until the spool is done.
+            // (Loosened, the spool also runs during the turn, and warp is allowed only while the craft is aligned and settled.)
             // This is only a backstop in case a warp slipped through.
-            if (!(turnSpooling && CrunchTuning.AllowWarp)) ReleaseWarp();
+            if (!WarpAllowed()) ReleaseWarp();
 
             Vector3d tp;
             if (!TryGetTargetPosition(lockedTarget, out tp)) { End(CrunchText.StopTargetLost); return; }
@@ -939,30 +995,25 @@ namespace CrunchDrives
             }
 
             // The controller's calibration pulses shake the craft; don't judge alignment until they're done.
-            if (useController && !turnCtl.Calibrated) { turnSettled = 0.0; return; }
+            bool calibrating = useController && !turnCtl.Calibrated;
 
-            // Start the second leg only once the craft is aligned AND has stopped turning for a moment, so
+            // The craft counts as settled once it is aligned AND has stopped turning for a moment, so
             // it isn't still swinging (or about to drift off) when the field forms.
-            if (err <= CrunchTuning.TurnAlignToleranceDeg && rate <= CrunchTuning.TurnSettleRateDegPerSec)
+            if (!calibrating && err <= CrunchTuning.TurnAlignToleranceDeg && rate <= CrunchTuning.TurnSettleRateDegPerSec)
                 turnSettled += dt;
             else
                 turnSettled = 0.0;
-            if (turnSettled < CrunchTuning.TurnSettleSeconds && !turnSpooling) return;
 
-            // Aligned: the Casimir blades spin up again before the second field can form, for as long as the first spool took, so the
+            // The Casimir blades spin up again before the second field can form, for as long as the first spool took, so the
             // second leg gets the same coefficient. The charge comes from whatever is stored now (a reactor or solar panels may have
             // refilled the batteries during the turn); if it runs out the spool ends there and the leg is flown at that speed.
-            // The craft keeps steering to the target meanwhile; the field forms once the spool is done and the craft is still aligned.
+            // Normally the spool starts once the craft is aligned. With Loosen Start Conditions it starts at once and runs while the craft
+            // is still turning. Either way the craft keeps steering to the target meanwhile, and the field forms once the spool is done
+            // and the craft is aligned and settled.
             if (!turnSpooling)
             {
-                double remaining0 = StopDistance(lockedTarget, distance);
-                if (remaining0 <= 0.0) { End(StopAt(lockedTarget, lockedTargetName), true); return; }
-
-                turnSpooling = true;
-                BeginSpool(v, firstSpoolSeconds);
-                Debug.Log(string.Format("[CrunchDrive] Second spool: drawing {0:N0} EC/s for {1:F1} s to match the first leg's {2:G4}c, {3:N0} EC stored, {4:E3} m to go.",
-                    spoolRate, firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), ReadStored(v), remaining0));
-                Post(CrunchText.MsgSpoolStart(firstSpoolSeconds));
+                if (!CrunchTuning.LoosenStart && (calibrating || turnSettled < CrunchTuning.TurnSettleSeconds)) return;
+                if (!BeginTurnSpool(v, distance)) return;
             }
 
             if (!spoolFinished)
@@ -973,7 +1024,11 @@ namespace CrunchDrives
                     return;
                 }
             }
-            if (turnSettled < CrunchTuning.TurnSettleSeconds) return;   // Drifted off during the spool: settle again first.
+            if (calibrating || turnSettled < CrunchTuning.TurnSettleSeconds)   // Not aligned yet, or drifted off during the spool: settle first.
+            {
+                Status = CrunchText.StatusTurning(lockedTargetName, err);
+                return;
+            }
 
             // Spooled and aligned: size the second leg from the real distance left, at the speed that was paid for, and start it.
             double remaining = StopDistance(lockedTarget, distance);
@@ -1444,7 +1499,9 @@ namespace CrunchDrives
             if (phase == CrunchPhase.Spooling) return true;
             if (phase == CrunchPhase.Ready) return true;   // Engaging checks that the leg is long enough for warp.
             if (phase != CrunchPhase.Crunching) return false;
-            if (turning) return turnSpooling;   // The turn itself is never allowed; the second spool is, like the first: the craft already points at the target.
+            // The turn itself is never allowed; the second spool is, like the first: the craft already points at the target.
+            // Loosened, the second spool starts while the craft is still turning, so it is allowed only once the craft is aligned and settled.
+            if (turning) return turnSpooling && (!CrunchTuning.LoosenStart || turnSettled >= CrunchTuning.TurnSettleSeconds);
             return activeWarpOk;
         }
 
@@ -1622,7 +1679,15 @@ namespace CrunchDrives
             CelestialBody hit = null;
             foreach (CelestialBody b in FlightGlobals.Bodies)
             {
-                double? t = CrunchMath.SweepEntry(V(p0), V(p1), V(BodyPos(b, exact, ut)), DropoutRadius(b));
+                Vector3d centre = BodyPos(b, exact, ut);
+                double radius = DropoutRadius(b);
+                if (departingZones.Contains(b))
+                {
+                    if ((p0 - centre).sqrMagnitude < radius * radius) continue;   // Still leaving this zone: not scanned yet.
+                    departingZones.Remove(b);
+                    Debug.Log("[CrunchDrive] Clear of " + b.name + "'s dropout zone; scanning it again.");
+                }
+                double? t = CrunchMath.SweepEntry(V(p0), V(p1), V(centre), radius);
                 if (t.HasValue && t.Value < bestT) { bestT = t.Value; hit = b; }
             }
 
@@ -1722,6 +1787,7 @@ namespace CrunchDrives
 
             // The attitude controller always lets go, whatever the reason.
             turnCtl.End();
+            departingZones.Clear();
 
             // Arriving under time warp: drop to 1x so the arrival assistance has a craft in physics to work on.
             if (arrived) ReleaseWarp();

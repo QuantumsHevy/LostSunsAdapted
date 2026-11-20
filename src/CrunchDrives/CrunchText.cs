@@ -74,7 +74,7 @@ namespace CrunchDrives
         public static string FieldDropoutAltitudeValue(double meters, string body) { return FormatDistance(meters) + " above " + body; }
         public static string FieldDropoutNearestValue(string body, double edgeMeters)
         {
-            if (edgeMeters < 0.0) return "Inside " + body + "'s dropout zone, " + FormatDistance(-edgeMeters) + " until departure.";
+            if (edgeMeters < 0.0) return "Inside " + body + "'s dropout sphere, " + FormatDistance(-edgeMeters) + " until departure.";
             return body + ": " + FormatDistance(edgeMeters) + " away.";
         }
 
@@ -110,6 +110,7 @@ namespace CrunchDrives
         public const string ToggleTurnController = "Use MechJeb2-Derived Attitude Controller";
         public const string ToggleCrunchWarp = "Allow time warp (EXPERIMENTAL)";
         public const string ToggleTwoLeg = "Use Automatic Approach";
+        public const string ToggleLoosenStart = "Loosen Start Conditions";
 
         public static string DirLong(bool backwards) { return backwards ? "AFT" : "FORE"; }         // buttons
         public static string DirShort(bool backwards) { return backwards ? "BCK" : "FWD"; }         // messages and log
@@ -239,7 +240,8 @@ namespace CrunchDrives
         public const string RefuseOtherVessels = "Another craft is loaded nearby.";
         public const string RefuseAtmosphere = "The craft is inside an atmosphere.";
         public const string RefuseEnginesActive = "Reaction engines are active.";
-        public static string RefuseZone(string body) { return "The craft is inside " + body + "'s dropout zone."; }
+        public static string RefuseZone(string body) { return "The craft is inside " + body + "'s dropout sphere."; }
+        public static string RefuseZoneInward(string body) { return "The craft would proceed deeper into " + body + "'s dropout sphere."; }
         public static string RefuseNotAligned(double errDeg, double tolDeg)
         {
             return string.Format("The craft is pointed {0:F1} degrees off-target (limit {1:F1}).", errDeg, tolDeg);

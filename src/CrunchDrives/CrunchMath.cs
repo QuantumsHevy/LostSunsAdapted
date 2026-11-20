@@ -171,6 +171,15 @@ namespace CrunchDrives.Core
             return length;
         }
 
+        // ---- Dropout zones: starting inside one ----
+
+        // True when moving along 'heading' from 'position' takes the craft away from the centre of a sphere (or keeps it as far away).
+        // A straight path that starts inside a sphere and moves away like this leaves it and never comes back in.
+        public static bool MovesAwayFrom(Vec3d position, Vec3d heading, Vec3d center)
+        {
+            return Vec3d.Dot(heading, position - center) >= 0.0;
+        }
+
         // ---- Arrival ----
 
         // Speed (m/s) needed to escape a body's gravity from the given distance from its center.
