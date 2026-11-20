@@ -122,6 +122,13 @@ namespace CrunchDrives.Core
             return cruiseC * C * (RampUpCumulative(end, rampSeconds) - RampUpCumulative(start, rampSeconds));
         }
 
+        // How far ahead of the craft a crunch is checked for a dropout sphere in its way when it engages: the distance covered while the
+        // speed ramps up (the first stretch of the crunch), but never less than minMeters.
+        public static double FirstStretchMeters(double tierC, double rampSeconds, double minMeters)
+        {
+            return Math.Max(minMeters, tierC * C * 0.5 * Math.Max(0.0, rampSeconds));
+        }
+
         // ---- Manual mode: filling in values ----
 
         // How long the Casimir blades must spin up to reach a coefficient: the inverse of SpoolCoefficient. A coefficient at or below

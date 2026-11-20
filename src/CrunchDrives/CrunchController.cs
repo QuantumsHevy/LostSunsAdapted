@@ -680,6 +680,24 @@ namespace CrunchDrives
                                : CrunchMath.LegSpeed(wanted, stats.MaxSpeedC, stats.RampSeconds, meters, fixedSeconds, stats.MinCrunchSeconds);
             if (tier < stats.MinSpeedC * 0.999) { Refuse(CrunchText.RefuseTooClose); return false; }
 
+            // At engage, the first stretch of the path (the distance covered while the speed ramps up, and no further than the leg goes) is
+            // checked against every dropout sphere except the target's own and those the craft is leaving: a crunch that would collapse at
+            // once is refused, so the spool is not wasted. It stays Ready and can be engaged again after the craft turns or drifts.
+            if (engaging)
+            {
+                double legMeters = open ? double.PositiveInfinity : (timed ? tier * CrunchMath.C * fixedSeconds : meters);
+                double stretch = System.Math.Min(legMeters, CrunchMath.FirstStretchMeters(tier, stats.RampSeconds, 1000.0));
+                Vector3d ahead = p + heading * stretch;
+                foreach (CelestialBody b in FlightGlobals.Bodies)
+                {
+                    if (locked && ReferenceEquals(b, target)) continue;
+                    double r = DropoutRadius(b);
+                    if ((p - b.position).sqrMagnitude < r * r) continue;   // Leaving this one (checked above).
+                    if (CrunchMath.SweepEntry(V(p), V(ahead), V(b.position), r).HasValue)
+                    { Refuse(CrunchText.RefuseZoneAhead(b.name)); return false; }
+                }
+            }
+
             double duration = fixedSeconds;
             if (open) duration = double.PositiveInfinity;
             else if (!timed) duration = CrunchMath.SecondsForDistance(meters, tier);

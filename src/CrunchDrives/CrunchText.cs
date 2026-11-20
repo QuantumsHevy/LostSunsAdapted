@@ -252,6 +252,7 @@ namespace CrunchDrives
         public const string RefuseAtmosphere = "The craft is inside an atmosphere.";
         public const string RefuseEnginesActive = "Reaction engines are active.";
         public static string RefuseZone(string body) { return "The craft is inside " + body + "'s dropout sphere."; }
+        public static string RefuseZoneAhead(string body) { return "The craft would re-enter " + body + "'s dropout sphere."; }
         public static string RefuseZoneInward(string body) { return "The craft would proceed deeper into " + body + "'s dropout sphere."; }
         public static string RefuseNotAligned(double errDeg, double tolDeg)
         {

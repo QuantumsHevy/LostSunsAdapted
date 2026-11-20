@@ -586,6 +586,29 @@ public class CrunchMathTests
     public void Halfway_takes_half_as_long_as_the_whole_way_when_neither_is_capped()
         => Assert.Equal(0.5, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 5e12, 0.1) / CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 1e13, 0.1), 9);
 
+    // ---- Engage-time check of the path ahead ----
+
+    [Fact]
+    public void The_first_stretch_is_the_distance_covered_while_ramping_up()
+        => Assert.Equal(2.5 * CrunchMath.C * 0.5 * 10.0, CrunchMath.FirstStretchMeters(2.5, 10.0, 1000.0), 3);
+
+    [Fact]
+    public void The_first_stretch_is_never_shorter_than_the_minimum()
+    {
+        Assert.Equal(1000.0, CrunchMath.FirstStretchMeters(0.0, 10.0, 1000.0), 9);
+        Assert.Equal(1000.0, CrunchMath.FirstStretchMeters(2.5, 0.0, 1000.0), 9);
+    }
+
+    [Fact]
+    public void A_sphere_the_first_stretch_clips_is_found_by_the_sweep()
+    {
+        // The craft sits just outside a sphere and its heading grazes the edge: the first 34 km already enter it.
+        var centre = new Vec3d(0.0, 0.0, 100.0);
+        double stretch = CrunchMath.FirstStretchMeters(2.5, 10.0, 1000.0);
+        var hit = CrunchMath.SweepEntry(new Vec3d(0.0, 0.0, 0.0), new Vec3d(0.0, 0.0, stretch), centre, 50.0);
+        Assert.True(hit.HasValue);
+    }
+
     // ---- Arrival ----
 
     [Fact]
