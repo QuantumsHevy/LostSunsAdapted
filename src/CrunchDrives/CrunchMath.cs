@@ -95,6 +95,55 @@ namespace CrunchDrives.Core
             return minC + (maxC - minC) * t;
         }
 
+        // ---- Open-ended speed curve (Manual mode with no duration set): ease up once, then cruise until the field collapses ----
+
+        // Distance covered by time t into the crunch, as a multiple of cruise speed (seconds x cruise speed).
+        static double RampUpCumulative(double t, double rampSeconds)
+        {
+            t = Math.Max(0.0, t);
+            if (!(rampSeconds > 0.0)) return t;
+            if (t < rampSeconds) return rampSeconds * SmoothstepArea(t / rampSeconds);
+            return 0.5 * rampSeconds + (t - rampSeconds);
+        }
+
+        // Speed as a share (0..1) of the cruise speed, t seconds into an open-ended crunch: the same smoothstep ramp as the start of a
+        // normal leg, then flat. There is no ramp down: the field simply collapses when the player stops it or the craft drops out.
+        public static double RampUpSpeedFactor(double elapsed, double rampSeconds)
+        {
+            if (!(rampSeconds > 0.0)) return 1.0;
+            return Smoothstep(Math.Max(0.0, Math.Min(1.0, elapsed / rampSeconds)));
+        }
+
+        // Distance for one tick of an open-ended crunch at cruiseC.
+        public static double RampUpDisplacementPerTick(double cruiseC, double elapsed, double dt, double rampSeconds)
+        {
+            double start = Math.Max(0.0, elapsed);
+            double end = Math.Max(start, elapsed + dt);
+            return cruiseC * C * (RampUpCumulative(end, rampSeconds) - RampUpCumulative(start, rampSeconds));
+        }
+
+        // ---- Manual mode: filling in values ----
+
+        // How long the Casimir blades must spin up to reach a coefficient: the inverse of SpoolCoefficient. A coefficient at or below
+        // minC needs only the shortest spool, and one at or above maxC the full spool.
+        public static double SpoolSecondsForCoefficient(double coefficientC, double minC, double maxC,
+                                                        double minSpoolSeconds, double fullSpoolSeconds)
+        {
+            if (!(coefficientC > minC)) return minSpoolSeconds;
+            if (!(maxC > minC)) return fullSpoolSeconds;
+            double t = Math.Min(1.0, (coefficientC - minC) / (maxC - minC));
+            return minSpoolSeconds + t * (fullSpoolSeconds - minSpoolSeconds);
+        }
+
+        // How long a leg of 'meters' lasts at an average speed of averageC, once that speed is lowered the way a leg's speed always is
+        // (LegSpeed: its peak within maxPeakC, and the leg at least minLegSeconds long). 0 when there is nothing to cover.
+        public static double SecondsToCover(double averageC, double maxPeakC, double rampSeconds, double meters, double minLegSeconds)
+        {
+            if (!(meters > 0.0)) return 0.0;
+            double c = LegSpeed(averageC, maxPeakC, rampSeconds, meters, 0.0, minLegSeconds);
+            return c > 0.0 ? SecondsForDistance(meters, c) : 0.0;
+        }
+
         // ---- Effects: how bright the tube of light is, and how high the field's sound is pitched, at a given live speed ----
 
         // Brightness (0..1) of the tube of light at a live speed: nothing at rest, rising in a straight line to full at fullAtC

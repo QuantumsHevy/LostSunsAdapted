@@ -36,10 +36,11 @@ namespace CrunchDrives
         public static double SpoolElapsed { get { return instance != null && IsSpooling ? instance.spoolElapsed : 0.0; } }          // Game seconds since the spool started.
         public static double SpoolSecondsPaid { get { return instance != null && IsSpooling ? instance.spoolSeconds : 0.0; } }       // Spool seconds the drawn charge has paid for (what sets the coefficient).
         public static double SpoolFraction { get { return instance != null && IsSpooling ? System.Math.Min(1.0, instance.spoolSeconds / instance.stats.GlowSpoolSeconds) : 0.0; } }   // 0..1, for the part's glow.
-        public static bool CanEngageFromSpool { get { return instance != null && instance.phase == CrunchPhase.Spooling && instance.spoolSeconds >= instance.stats.MinSpoolSeconds; } }   // The spool is long enough to engage now.
+        public static bool CanEngageFromSpool { get { return instance != null && instance.phase == CrunchPhase.Spooling && instance.spoolSeconds >= instance.stats.MinSpoolSeconds && !instance.spoolHoldsForSpeed; } }   // The spool is long enough to engage now (a spool for a set speed in Manual mode runs to that speed first).
 
         public static double LiveSpeedC { get { return instance != null && instance.phase == CrunchPhase.Crunching ? instance.activeTier * instance.CurveSpeedFactor() : 0.0; } }
         public static double LegElapsed { get { return instance != null ? instance.elapsed : 0.0; } }
+        public static bool IsOpenEnded { get { return instance != null && instance.phase == CrunchPhase.Crunching && instance.openEnded; } }   // Manual mode with no duration set: the field stays up until it is collapsed.
         public static double LegDuration { get { return instance != null ? instance.activeDuration : 0.0; } }
         public static double TraveledMeters { get { return instance != null ? instance.traveled : 0.0; } }
         public static double ActiveTierC
@@ -80,6 +81,7 @@ namespace CrunchDrives
             public double duration;
             public double ramp;          // Share of the leg each speed ramp takes.
             public bool warpOk;          // The leg is long enough for on-rails time warp.
+            public bool openEnded;       // The leg has no end: it ramps up and holds its speed until the field collapses.
             public bool closedLoop;      // The leg's length is tied to the distance to the target's stopping point.
             public double endFraction;   // Share of the starting stop distance still left when the leg ends (0 = all the way).
         }
@@ -146,6 +148,7 @@ namespace CrunchDrives
         double spoolRate;           // Charge (EC) per second the spool draws now: the player's setting on the primary drive, which can change during the spool.
         double spoolNominal;        // Charge (EC) one spool second costs: the drive's nominal rate. A higher draw rate buys spool seconds faster, not cheaper.
         double spoolTier;           // Average speed (c) the finished spool has paid for.
+        bool spoolHoldsForSpeed;    // Manual mode with a set speed: the spool runs to exactly that speed, and cannot be engaged sooner.
         double firstSpoolSeconds;   // Length of the first spool, which the second spool repeats.
         bool spoolFinished;         // The second spool is over (it ran its length, or the craft ran out of charge).
         double spoolDryTime;        // Game seconds the craft has been unable to supply the full draw.
@@ -160,6 +163,7 @@ namespace CrunchDrives
         bool activeWarpOk;          // This leg is long enough for on-rails time warp.
         double activeDuration;      // Length of the current crunch leg, in seconds.
         double activeRamp;          // Ramp-up and ramp-down of the current leg, each as a fraction of the leg.
+        bool openEnded;             // The current leg has no duration (Manual mode, no time set): only a ramp-up, then a steady speed.
         double elapsed;             // Game seconds since the current leg began.
         double traveled;            // Total commanded displacement, in meters.
         double logTimer;
@@ -237,23 +241,47 @@ namespace CrunchDrives
                                                stats.MinSpoolSeconds, stats.MaxSpoolSeconds);
         }
 
-        // How the first leg is sized: a length in meters or, in Fixed-time mode, a time. Two-leg mode (with a target) covers half the
-        // distance to the stopping point in the first leg, and one-leg mode all of it.
+        // How the first leg is sized: a length in meters or, in Manual mode, a time (or nothing at all, see openEnded). Two-Leg mode (with a
+        // target) covers half the distance to the stopping point in the first leg, and One-Leg mode all of it.
         static void LegSizing(bool locked, ITargetable target, double targetDistance,
-                              out bool twoLegPlan, out double meters, out double fixedSeconds)
+                              out bool twoLegPlan, out double meters, out double fixedSeconds, out bool openEnded)
         {
             twoLegPlan = locked && CrunchTuning.Mode == TravelMode.TwoLeg;
             meters = 0.0;
             fixedSeconds = 0.0;
+            openEnded = false;
 
-            if (CrunchTuning.Mode == TravelMode.FixedDuration)
+            if (CrunchTuning.Mode == TravelMode.Manual)
             {
-                fixedSeconds = CrunchTuning.CrunchSeconds;
+                if (CrunchTuning.ManualSetTime) fixedSeconds = CrunchTuning.CrunchSeconds;
+                else openEnded = true;   // No time set: the crunch lasts until the player collapses the field or the craft drops out.
             }
             else if (locked)   // Without a target the caller refuses.
             {
                 meters = StopDistance(target, targetDistance) * (twoLegPlan ? 0.5 : 1.0);
             }
+        }
+
+        // Manual mode's Fill buttons: how long a crunch of the given share of the distance to the target's stopping point lasts, at the speed
+        // the player set or, with no speed set, at the coefficient the finished spool reached. False when there is nothing to fill in from
+        // (no target, already there, or no speed known yet). The result is a snapshot: the target keeps moving.
+        public static bool TryFillSeconds(double share, out double seconds)
+        {
+            seconds = 0.0;
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null || v.targetObject == null) return false;
+            Vector3d tp;
+            if (!TryGetTargetPosition(v.targetObject, out tp)) return false;
+
+            DriveStats st = StatsFor(v);
+            double c;
+            if (CrunchTuning.ManualSetSpeed) c = System.Math.Max(st.MinSpeedC, System.Math.Min(st.MaxSpeedC, CrunchTuning.ManualSpeedC));
+            else if (instance != null && instance.phase == CrunchPhase.Ready) c = instance.spoolTier;
+            else return false;
+
+            double meters = StopDistance(v.targetObject, (tp - v.GetWorldPos3D()).magnitude) * share;
+            seconds = CrunchMath.SecondsToCover(c, st.MaxSpeedC, st.RampSeconds, meters, st.MinCrunchSeconds);
+            return seconds > 0.0;
         }
 
         // Starts a spool that ends by itself after targetSeconds of paid-for spooling (the player may engage sooner).
@@ -543,7 +571,7 @@ namespace CrunchDrives
             {
                 case CrunchPhase.Idle: StartSpool(v); break;
                 case CrunchPhase.Spooling:   // Engage as soon as the spool is long enough: the speed is whatever it has reached.
-                    if (spoolSeconds >= stats.MinSpoolSeconds)
+                    if (spoolSeconds >= stats.MinSpoolSeconds && !spoolHoldsForSpeed)
                     {
                         FinishSpool(v, false, false);
                         TryEngage(v);
@@ -639,31 +667,35 @@ namespace CrunchDrives
             // to the stopping point. The second leg is planned when it starts, from the real distance left.
             bool twoLegPlan;
             double meters, fixedSeconds;
-            LegSizing(locked, target, targetDistance, out twoLegPlan, out meters, out fixedSeconds);
+            bool open;
+            LegSizing(locked, target, targetDistance, out twoLegPlan, out meters, out fixedSeconds, out open);
             bool timed = fixedSeconds > 0.0;
-            if (!timed && !locked) { Refuse(CrunchText.RefuseNoTarget); return false; }
+            if (!timed && !locked && !open) { Refuse(CrunchText.RefuseNoTarget); return false; }
 
             // Speed: what the spool has paid for, lowered to keep the peak within the drive's top speed and the leg at least its shortest length.
             // Before the spool starts only the leg's geometry is checked, with the slowest speed.
-            double tier = CrunchMath.LegSpeed(engaging ? spoolTier : stats.MinSpeedC, stats.MaxSpeedC,
-                                              stats.RampSeconds, meters, fixedSeconds, stats.MinCrunchSeconds);
+            // A leg with no end has no length to fit, so its speed is the spool's, within the drive's top speed.
+            double wanted = engaging ? spoolTier : stats.MinSpeedC;
+            double tier = open ? System.Math.Min(wanted, stats.MaxSpeedC)
+                               : CrunchMath.LegSpeed(wanted, stats.MaxSpeedC, stats.RampSeconds, meters, fixedSeconds, stats.MinCrunchSeconds);
             if (tier < stats.MinSpeedC * 0.999) { Refuse(CrunchText.RefuseTooClose); return false; }
 
             double duration = fixedSeconds;
-            if (!timed) duration = CrunchMath.SecondsForDistance(meters, tier);
+            if (open) duration = double.PositiveInfinity;
+            else if (!timed) duration = CrunchMath.SecondsForDistance(meters, tier);
 
-            double ramp = RampFor(duration);
+            double ramp = open ? 0.0 : RampFor(duration);
 
             // On-rails time warp is only allowed for a long leg that is being engaged (not before the spool starts).
             // A drive that is engaged under warp when the leg is too short for it is not refused: warp is dropped to 1x and the crunch goes ahead.
-            bool warpOk = duration >= CrunchTuning.WarpMinLegSeconds;
+            bool warpOk = !open && duration >= CrunchTuning.WarpMinLegSeconds;   // A crunch with no set duration cannot be warped: it has no known end to slow down for.
             if (TimeWarp.CurrentRate > 1.0f &&
                 !(warpOk && CrunchTuning.AllowWarp && phase == CrunchPhase.Ready))
             {
                 if (engaging)
                 {
                     ReleaseWarp();
-                    Post(CrunchText.MsgWarpLockedShort);
+                    Post(open ? CrunchText.MsgWarpLockedOpen : CrunchText.MsgWarpLockedShort);
                 }
                 else
                 {
@@ -675,9 +707,10 @@ namespace CrunchDrives
             if (announce)
                 Debug.Log(string.Format("[CrunchDrive] {0}: {1}{2}, compression coefficient {3:G4}c (peak {4:G4}c), leg {5:F2} s, ramps {7:F2} s{6}",
                     twoLegPlan ? "Two-leg maneuver" : "Travel mode " + CrunchTuning.Mode,
-                    timed ? "fixed time" : string.Format("{0:E3} m", meters),
+                    open ? "no set duration" : (timed ? "fixed time" : string.Format("{0:E3} m", meters)),
                     twoLegPlan ? " for the first leg" : "",
-                    tier, tier * CrunchMath.TrapezoidPeakFactor(ramp), duration, warpOk ? ", warp allowed" : "", ramp * duration));
+                    tier, open ? tier : tier * CrunchMath.TrapezoidPeakFactor(ramp), open ? double.PositiveInfinity : duration,
+                    warpOk ? ", warp allowed" : "", open ? stats.RampSeconds : ramp * duration));
 
             plan.backwards = backwards;
             plan.locked = locked;
@@ -690,7 +723,8 @@ namespace CrunchDrives
             plan.duration = duration;
             plan.ramp = ramp;
             plan.warpOk = warpOk;
-            plan.closedLoop = locked && CrunchTuning.Mode != TravelMode.FixedDuration;
+            plan.openEnded = open;
+            plan.closedLoop = locked && CrunchTuning.Mode != TravelMode.Manual;
             plan.endFraction = twoLegPlan ? 0.5 : 0.0;
             return true;
         }
@@ -716,7 +750,18 @@ namespace CrunchDrives
             spoolTier = stats.MinSpeedC;
             crunchVessel = v;
             engineThrustTime = 0;
-            BeginSpool(v, stats.MaxSpoolSeconds);
+            // Manual mode with a set speed: the spool runs for exactly the time that buys that speed, and ends by itself there.
+            double spoolFor = stats.MaxSpoolSeconds;
+            spoolHoldsForSpeed = false;
+            if (CrunchTuning.Mode == TravelMode.Manual && CrunchTuning.ManualSetSpeed)
+            {
+                double setC = System.Math.Max(stats.MinSpeedC, System.Math.Min(stats.MaxSpeedC, CrunchTuning.ManualSpeedC));
+                spoolFor = CrunchMath.SpoolSecondsForCoefficient(setC, stats.MinSpeedC, stats.MaxSpeedC, stats.MinSpoolSeconds, stats.MaxSpoolSeconds);
+                spoolHoldsForSpeed = spoolFor > stats.MinSpoolSeconds;
+                Debug.Log(string.Format("[CrunchDrive] Manual speed {0:G4}c: the spool runs for {1:F1} spool seconds{2}.",
+                    setC, spoolFor, spoolHoldsForSpeed ? " and cannot be engaged before then" : ""));
+            }
+            BeginSpool(v, spoolFor);
             phase = CrunchPhase.Spooling;
             LockOutEngines(v);
             Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate, false);
@@ -738,6 +783,7 @@ namespace CrunchDrives
             activeWarpOk = plan.warpOk;
             activeDuration = plan.duration;
             activeRamp = plan.ramp;
+            openEnded = plan.openEnded;
             legClosedLoop = plan.closedLoop;
             legEndFraction = plan.endFraction;
             legEndStop = -1.0;
@@ -839,6 +885,7 @@ namespace CrunchDrives
             string why;
             if (!CrunchTuning.AllowWarp) why = CrunchText.MsgWarpLockedOff;
             else if (phase == CrunchPhase.Crunching && turning) why = CrunchText.MsgWarpLockedTurning;
+            else if (phase == CrunchPhase.Crunching && openEnded) why = CrunchText.MsgWarpLockedOpen;
             else why = CrunchText.MsgWarpLockedShort;
 
             Debug.Log(string.Format("[CrunchDrive] Time warp ({0:G}x) locked out: phase {1}, leg {2}, turning={3}, leg length {4:F1} s, warp-capable={5}. Back to 1x.",
@@ -1040,6 +1087,7 @@ namespace CrunchDrives
             activeWarpOk = duration >= CrunchTuning.WarpMinLegSeconds;
             activeDuration = duration;
             activeRamp = RampFor(duration);
+            openEnded = false;
             legClosedLoop = true;
             legEndFraction = 0.0;
             legEndStop = -1.0;
@@ -1474,12 +1522,14 @@ namespace CrunchDrives
         // Distance to move this tick along the speed curve (ramp up, cruise, ramp down).
         double CurveDisplacement(double stepDt)
         {
+            if (openEnded) return CrunchMath.RampUpDisplacementPerTick(activeTier, elapsed, stepDt, stats.RampSeconds);
             return CrunchMath.TrapezoidDisplacementPerTick(activeTier, elapsed, stepDt, activeDuration, activeRamp);
         }
 
         // Current speed as a multiple of the average tier, for the readout.
         double CurveSpeedFactor()
         {
+            if (openEnded) return CrunchMath.RampUpSpeedFactor(elapsed, stats.RampSeconds);
             double progress = System.Math.Min(1.0, elapsed / activeDuration);
             return CrunchMath.TrapezoidSpeedFactor(progress, activeRamp);
         }
@@ -1580,7 +1630,7 @@ namespace CrunchDrives
                 {
                     // A spool under time warp slows the warp down before it ends by itself, like a crunch leg does.
                     if (TimeWarp.CurrentRate > 1.0f) StepWarpDown(SpoolSecondsLeft(), CrunchTuning.WarpSpoolFinalSeconds);
-                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, spoolSeconds >= stats.MinSpoolSeconds);
+                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, spoolSeconds >= stats.MinSpoolSeconds && !spoolHoldsForSpeed);
                 }
                 return;
             }
@@ -1655,7 +1705,7 @@ namespace CrunchDrives
             }
 
             // Slow time warp down before the speed starts to fall, by the clock and by the distance left.
-            if (TimeWarp.CurrentRate > 1.0f)
+            if (TimeWarp.CurrentRate > 1.0f && !openEnded)
             {
                 double rampSeconds = activeRamp * activeDuration;
                 double left = activeDuration - elapsed - rampSeconds;   // Until the ramp-down starts.

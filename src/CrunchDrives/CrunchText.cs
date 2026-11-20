@@ -78,7 +78,10 @@ namespace CrunchDrives
             return body + ": " + FormatDistance(edgeMeters) + " away.";
         }
 
-        public static string FieldTimeValue(double elapsed, double duration) { return FormatDuration(elapsed) + " / " + FormatDuration(duration); }
+        public static string FieldTimeValue(double elapsed, double duration)
+        {
+            return double.IsInfinity(duration) ? FormatDuration(elapsed) : FormatDuration(elapsed) + " / " + FormatDuration(duration);   // An open-ended crunch has no duration.
+        }
         public static string FieldRangeValue(double seconds, double tierC) { return FormatDistance(tierC * CrunchMath.C * seconds); }
 
         public static string PhaseWord(CrunchPhase phase, bool turning, bool spooling = false)
@@ -99,10 +102,18 @@ namespace CrunchDrives
         public const string ButtonStop = "COLLAPSE CRUNCH FIELD";
         public const string ButtonAbortApproach = "ABORT APPROACH";
         public const string ButtonCancel = "STOP CASIMIR GENERATION";
-        public const string SliderDuration = "Fixed-time Field Duration (s)";
         public const string LabelTier = "Crunch Coefficient: {0:G3}c";
 
-        public static readonly string[] ModeNames = { "Two-Leg", "One-Leg", "Fixed-Time" };   // In the order of the TravelMode enum.
+        public static readonly string[] ModeNames = { "Two-Leg", "One-Leg", "Manual" };   // In the order of the TravelMode enum.
+
+        // Manual mode (part menu; shown only while the mode is Manual)
+        public const string GroupManualTitle = "Manual Settings";
+        public const string FieldManualSet = "Set By Player";
+        public static readonly string[] ManualSetNames = { "Speed", "Time", "Both", "Neither" };   // Which of the two values below the player sets.
+        public const string FieldManualSpeed = "Crunch Coefficient (c)";
+        public const string FieldManualTime = "Field Duration (s)";
+        public const string ButtonFillHalf = "Set Duration To Halfway";
+        public const string ButtonFillFull = "Set Duration To Full Distance";
 
         // Settings (part menu)
         public const string ToggleCaptureAssist = "Use Capture Assistance";
@@ -166,11 +177,11 @@ namespace CrunchDrives
             return string.Format(
                 "CRUNCH FIELD ACTIVE ({0})\n" +
                 "Speed: {1:G3}c ({2:N0} km/s)\n" +
-                "Time: {3} / {4}\n" +
-                "Traveled: {5:F3} Gm\n" +
-                "Off-Axis: {6:F1} degrees\n" +
-                "Orbital Velocity: {7:F0} m/s relative to {8}{9}",
-                DirHud(backwards), tierC, tierC * CrunchMath.C / 1000.0, FormatDuration(elapsed), FormatDuration(duration),
+                "Time: {3}\n" +
+                "Traveled: {4:F3} Gm\n" +
+                "Off-Axis: {5:F1} degrees\n" +
+                "Orbital Velocity: {6:F0} m/s relative to {7}{8}",
+                DirHud(backwards), tierC, tierC * CrunchMath.C / 1000.0, FieldTimeValue(elapsed, duration),
                 gm, offAxisDeg, realSpeed, body, lockInfo);
         }
 
@@ -229,6 +240,7 @@ namespace CrunchDrives
         public const string MsgWarpDropped = "Time warp released.";
         public const string MsgWarpLockedTurning = "Time warp unavailable while turning.";
         public const string MsgWarpLockedShort = "Time warp unavailable during short crunches.";
+        public const string MsgWarpLockedOpen = "Time warp unavailable during crunches with no set duration.";
         public const string MsgWarpLockedOff = "Time warp is disabled for the crunch drive.";
         public const string MsgFirstLegDone = "Leg 1 complete. Turning...";
         public const string MsgSecondLeg = "Starting leg 2...";

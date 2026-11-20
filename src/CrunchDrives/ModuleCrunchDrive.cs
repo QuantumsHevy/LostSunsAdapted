@@ -14,6 +14,9 @@ namespace CrunchDrives
         const string MainGroup = "CrunchDrive";
         const string TargetGroup = "CrunchDriveTarget";
         const string SettingsGroup = "CrunchDriveSettings";
+        const string ManualGroup = "CrunchDriveManual";
+        const string LegacyManualModeName = "Fixed-Time";   // What Manual mode was called in older saves.
+        const float MaxManualSeconds = 1000000f;
 
         // Effect names. They must match the entries in the part's EFFECTS block.
         const string FxSpool = "crunchSpool";        // Loop while the Casimir blades spin up.
@@ -172,9 +175,27 @@ namespace CrunchDrives
          UI_ChooseOption(scene = UI_Scene.Editor)]
         public string travelMode = CrunchText.ModeNames[0];
 
-        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.SliderDuration, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
-         UI_FloatRange(minValue = 1f, maxValue = 120f, stepIncrement = 1f, scene = UI_Scene.Editor)]
+        // ---- Manual mode (shown only while the mode is Manual; editable in the VAB/SPH and in flight) ----
+        // UNVERIFIED KSP API: UI_FloatEdit's members (minValue, maxValue, incrementLarge, incrementSmall, incrementSlide, sigFigs, unit), and
+        // typed-number entry into it.
+
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualSet, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle, groupStartCollapsed = false),
+         UI_ChooseOption(scene = UI_Scene.All)]
+        public string manualSet = CrunchText.ManualSetNames[1];
+
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualSpeed, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle, groupStartCollapsed = false),
+         UI_FloatEdit(scene = UI_Scene.All, minValue = 0.25f, maxValue = 250f, incrementLarge = 10f, incrementSmall = 1f, incrementSlide = 0.05f, sigFigs = 2)]
+        public float manualSpeedC = 1f;
+
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualTime, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle, groupStartCollapsed = false),
+         UI_FloatEdit(scene = UI_Scene.All, minValue = 1f, maxValue = MaxManualSeconds, incrementLarge = 60f, incrementSmall = 10f, incrementSlide = 1f, sigFigs = 0)]
         public float crunchSeconds = 10f;
+
+        [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonFillHalf, active = false, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle)]
+        public void FillHalfEvent() { FillSeconds(0.5); }
+
+        [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonFillFull, active = false, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle)]
+        public void FillFullEvent() { FillSeconds(1.0); }
 
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.ToggleCaptureAssist, groupName = SettingsGroup, groupDisplayName = CrunchText.GroupSettingsTitle, groupStartCollapsed = true),
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.Editor)]
@@ -197,7 +218,8 @@ namespace CrunchDrives
             nameof(dropoutAltitudeLine), nameof(dropoutNearestLine)
         };
 
-        static readonly string[] ButtonEvents = { nameof(PrimaryEvent), nameof(CancelEvent), nameof(DirectionEvent) };
+        static readonly string[] ButtonEvents = { nameof(PrimaryEvent), nameof(CancelEvent), nameof(DirectionEvent), nameof(FillHalfEvent), nameof(FillFullEvent) };
+        static readonly string[] ManualFields = { nameof(manualSet), nameof(manualSpeedC), nameof(crunchSeconds) };
 
         // The tube of light, parented to this part. Only the primary drive shows one.
         CrunchTube tube;
@@ -256,6 +278,17 @@ namespace CrunchDrives
 
             // The mode names live in CrunchText, so they are handed to the selector here rather than in the attribute.
             SetOptions(Fields[nameof(travelMode)].uiControlEditor as UI_ChooseOption);
+            SetManualOptions(Fields[nameof(manualSet)].uiControlEditor as UI_ChooseOption);
+            SetManualOptions(Fields[nameof(manualSet)].uiControlFlight as UI_ChooseOption);
+
+            // Manual mode's speed stays within the drive's own range (the part's cfg can change it).
+            DriveStats st = Stats;
+            SetSpeedRange(Fields[nameof(manualSpeedC)].uiControlEditor as UI_FloatEdit, st);
+            SetSpeedRange(Fields[nameof(manualSpeedC)].uiControlFlight as UI_FloatEdit, st);
+
+            if (travelMode == LegacyManualModeName) travelMode = CrunchText.ModeNames[(int)TravelMode.Manual];   // Older saves.
+            if (Array.IndexOf(CrunchText.ManualSetNames, manualSet) < 0) manualSet = CrunchText.ManualSetNames[1];
+            ClampManual();
 
             // The draw slider's limits are the part's own, which the attribute (a compile-time constant) cannot hold.
             BaseField draw = Fields[nameof(spoolDraw)];
@@ -284,6 +317,81 @@ namespace CrunchDrives
             if (option != null) option.options = CrunchText.ModeNames;
         }
 
+        static void SetManualOptions(UI_ChooseOption option)
+        {
+            if (option != null) option.options = CrunchText.ManualSetNames;
+        }
+
+        static void SetSpeedRange(UI_FloatEdit edit, DriveStats st)
+        {
+            if (edit == null) return;
+            edit.minValue = (float)st.MinSpeedC;
+            edit.maxValue = (float)st.MaxSpeedC;
+        }
+
+        // ---- Manual mode ----
+
+        int ManualIndex()
+        {
+            int i = Array.IndexOf(CrunchText.ManualSetNames, manualSet);
+            return i < 0 ? 1 : i;
+        }
+
+        bool ManualSetsSpeed() { int i = ManualIndex(); return i == 0 || i == 2; }
+        bool ManualSetsTime() { int i = ManualIndex(); return i == 1 || i == 2; }
+
+        // Out-of-range entries snap back: a speed above the drive's top speed to the top speed, one below its slowest to the slowest
+        // (0.25c to 250c unless the part says otherwise).
+        void ClampManual()
+        {
+            DriveStats st = Stats;
+            float lo = (float)st.MinSpeedC, hi = (float)st.MaxSpeedC;
+            if (!(manualSpeedC >= lo)) manualSpeedC = lo;
+            else if (manualSpeedC > hi) manualSpeedC = hi;
+            if (!(crunchSeconds >= 1f)) crunchSeconds = 1f;
+            else if (crunchSeconds > MaxManualSeconds) crunchSeconds = MaxManualSeconds;
+        }
+
+        // The Fill buttons put the time to cover a share of the way to the target into the time field.
+        void FillSeconds(double share)
+        {
+            if (!IsPrimary()) return;
+            PushSettings();
+            double seconds;
+            if (!CrunchController.TryFillSeconds(share, out seconds)) return;
+            crunchSeconds = (float)seconds;
+            ClampManual();
+            menuDirty = true;
+        }
+
+        // Shows or hides a Manual field in the current scene (the field's editor flag in the VAB/SPH, its flight flag in flight).
+        void SetManualVisible(string field, bool on)
+        {
+            BaseField f = Fields[field];
+            if (f == null) return;
+            bool editor = HighLogic.LoadedSceneIsEditor;
+            if ((editor ? f.guiActiveEditor : f.guiActive) == on) return;
+            if (editor) f.guiActiveEditor = on; else f.guiActive = on;
+            menuDirty = true;
+        }
+
+        void ShowManualFields(bool show)
+        {
+            SetManualVisible(nameof(manualSet), show);
+            SetManualVisible(nameof(manualSpeedC), show && ManualSetsSpeed());
+            SetManualVisible(nameof(crunchSeconds), show && ManualSetsTime());
+        }
+
+        // Part modules are MonoBehaviours, so Update also runs in the VAB/SPH (OnUpdate does not). UNVERIFIED: that toggling guiActiveEditor
+        // at runtime and flagging the open window dirty rebuilds the menu in the editor.
+        void Update()
+        {
+            if (!HighLogic.LoadedSceneIsEditor) return;
+            ClampManual();
+            ShowManualFields(ModeIndex() == (int)TravelMode.Manual);
+            RefreshMenuIfNeeded();
+        }
+
         void SetDrawRange(UI_FloatRange range)
         {
             if (range == null) return;
@@ -304,6 +412,7 @@ namespace CrunchDrives
             {
                 statusLine = CrunchText.StatusStandby;
                 SetFieldsVisible(ReadoutFields, false);
+                ShowManualFields(false);
                 SetEventsActive(ButtonEvents, false);
                 StopLoops();
                 ReleaseCues();
@@ -321,7 +430,8 @@ namespace CrunchDrives
             bool crunching = phase == CrunchPhase.Crunching;
             bool field = crunching && !turning;
             bool hasTarget = CrunchController.TargetName.Length > 0;
-            bool fixedTime = ModeIndex() == (int)TravelMode.FixedDuration;
+            bool manual = ModeIndex() == (int)TravelMode.Manual;
+            bool openEnded = CrunchController.IsOpenEnded;
             bool twoLeg = ModeIndex() == (int)TravelMode.TwoLeg;
             bool dropoutKnown = CrunchController.DropoutBodyName.Length > 0;
 
@@ -340,7 +450,7 @@ namespace CrunchDrives
             SetVisible(nameof(legLine), CrunchController.IsTwoLeg);
 
             progressLine = CrunchText.FieldProgressValue(CrunchController.LegElapsed, CrunchController.LegDuration);
-            SetVisible(nameof(progressLine), field);
+            SetVisible(nameof(progressLine), field && !openEnded);   // A crunch with no set duration has no progress.
 
             speedLine = CrunchText.FieldSpeedValue(CrunchController.LiveSpeedC);
             SetVisible(nameof(speedLine), field);
@@ -365,7 +475,7 @@ namespace CrunchDrives
             SetVisible(nameof(distanceLine), hasTarget);
 
             rangeLine = CrunchText.FieldRangeValue(crunchSeconds, CrunchController.ActiveTierC);
-            SetVisible(nameof(rangeLine), fixedTime && (phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready));
+            SetVisible(nameof(rangeLine), manual && ManualSetsTime() && (phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready));
 
             dropoutAltitudeLine = CrunchText.FieldDropoutAltitudeValue(CrunchController.DropoutAltitudeMeters, vessel.mainBody.name);
             SetVisible(nameof(dropoutAltitudeLine), dropoutKnown);
@@ -378,6 +488,13 @@ namespace CrunchDrives
             bool canEngage = CrunchController.CanEngageFromSpool;
             primary.guiName = CrunchText.PrimaryButton(phase, backwards, turning, canEngage);
             primary.active = phase != CrunchPhase.Spooling || canEngage;
+
+            // Manual settings: shown only in Manual mode (not during a crunch). The Fill buttons need a target and a known speed: the one
+            // the player set, or else the one the finished spool reached.
+            ShowManualFields(manual && !crunching);
+            bool fill = manual && !crunching && hasTarget && ManualSetsTime() && (ManualSetsSpeed() || phase == CrunchPhase.Ready);
+            Events[nameof(FillHalfEvent)].active = fill;
+            Events[nameof(FillFullEvent)].active = fill;
 
             Events[nameof(CancelEvent)].active = phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready;
 
@@ -485,6 +602,10 @@ namespace CrunchDrives
 
             CrunchTuning.Backwards = backwards;
             CrunchTuning.Mode = (TravelMode)ModeIndex();
+            ClampManual();
+            CrunchTuning.ManualSetSpeed = ManualSetsSpeed();
+            CrunchTuning.ManualSetTime = ManualSetsTime();
+            CrunchTuning.ManualSpeedC = manualSpeedC;
             CrunchTuning.CrunchSeconds = crunchSeconds;
             CrunchTuning.CaptureAssist = captureAssist;
             CrunchTuning.LoosenStart = loosenStart;

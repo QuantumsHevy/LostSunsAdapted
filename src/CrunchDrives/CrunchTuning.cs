@@ -1,6 +1,6 @@
 namespace CrunchDrives
 {
-    public enum TravelMode { TwoLeg, OneLeg, FixedDuration }
+    public enum TravelMode { TwoLeg, OneLeg, Manual }
 
     public static class CrunchTuning
     {
@@ -100,8 +100,11 @@ namespace CrunchDrives
         public const double InterceptMaxDistance = 1000000.0;   // Farther than this from the target craft (m), the craft is captured by the body instead.
 
         // ---- Player controls (live values; the primary crunch drive copies its craft settings here, and the debug window sets UseTurnController and AllowWarp) ----
-        public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. FixedDuration: a single manual crunch of CrunchSeconds. TwoLeg and OneLeg need a target.
-        public static double CrunchSeconds = 10.0;                  // Duration in FixedDuration mode.
+        public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. Manual: the player's own crunch (see below). TwoLeg and OneLeg need a target.
+        public static bool ManualSetSpeed = false;                  // Manual mode: the player sets the average speed (ManualSpeedC). The spool ends by itself at exactly that speed. If not, the speed is whatever the spool reaches.
+        public static bool ManualSetTime = true;                    // Manual mode: the player sets the duration (CrunchSeconds). If not, the crunch has no end: the speed ramps up once and stays there until the player collapses the field or the craft drops out.
+        public static double ManualSpeedC = 1.0;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
+        public static double CrunchSeconds = 45.0;                  // Manual mode: the duration when ManualSetTime is on.
         public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
         public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.
         public static bool AllowWarp = true;                        // The spool and long crunches may run under time warp. EXPERIMENTAL.

@@ -468,6 +468,124 @@ public class CrunchMathTests
         Assert.Equal(0.0, CrunchMath.SweepEntry(start, new Vec3d(-1e9, 0, 0), center, 1e6));
     }
 
+    // ---- Open-ended speed curve (Manual mode with no duration set) ----
+
+    [Fact]
+    public void An_open_ended_crunch_starts_at_rest_and_cruises_after_the_ramp()
+    {
+        Assert.Equal(0.0, CrunchMath.RampUpSpeedFactor(0.0, 7.5), 9);
+        Assert.Equal(0.5, CrunchMath.RampUpSpeedFactor(3.75, 7.5), 9);
+        Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(7.5, 7.5), 9);
+        Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(1000.0, 7.5), 9);
+    }
+
+    [Fact]
+    public void An_open_ended_crunch_never_slows_down_or_stops_on_its_own()
+    {
+        double previous = 0.0;
+        for (int i = 0; i <= 2000; i++)
+        {
+            double f = CrunchMath.RampUpSpeedFactor(i * 0.01, 7.5);
+            Assert.True(f >= previous - 1e-12);
+            previous = f;
+        }
+        Assert.Equal(1.0, previous, 9);
+    }
+
+    [Fact]
+    public void An_open_ended_crunch_with_no_ramp_cruises_at_once()
+        => Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(0.0, 0.0), 9);
+
+    [Fact]
+    public void The_ramp_up_covers_half_the_distance_of_cruising_through_it()
+    {
+        double d = CrunchMath.RampUpDisplacementPerTick(10.0, 0.0, 7.5, 7.5);
+        Assert.Equal(0.5 * 7.5 * 10.0 * CrunchMath.C, d, 3);
+    }
+
+    [Fact]
+    public void After_the_ramp_an_open_ended_crunch_covers_its_cruise_speed_every_second()
+        => Assert.Equal(10.0 * CrunchMath.C, CrunchMath.RampUpDisplacementPerTick(10.0, 100.0, 1.0, 7.5), 3);
+
+    [Fact]
+    public void Open_ended_ticks_add_up_to_the_whole_distance()
+    {
+        const double ramp = 7.5, dt = 0.02, cruise = 25.0;
+        double total = 0.0, t = 0.0;
+        while (t < 60.0 - 1e-9) { total += CrunchMath.RampUpDisplacementPerTick(cruise, t, dt, ramp); t += dt; }
+        double expected = cruise * CrunchMath.C * (60.0 - 0.5 * ramp);
+        Assert.InRange(total / expected, 0.999999, 1.000001);
+    }
+
+    [Fact]
+    public void An_open_ended_tick_matches_the_speed_factor()
+    {
+        double t = 2.0, dt = 0.001;
+        double perTick = CrunchMath.RampUpDisplacementPerTick(1.0, t, dt, 7.5);
+        double expected = CrunchMath.C * dt * CrunchMath.RampUpSpeedFactor(t + dt / 2, 7.5);
+        Assert.InRange(perTick / expected, 0.999, 1.001);
+    }
+
+    // ---- Manual mode: filling in values ----
+
+    [Fact]
+    public void A_set_speed_needs_the_spool_that_buys_it()
+    {
+        Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(0.25, 0.25, 250.0, 5.0, 1800.0), 9);
+        Assert.Equal(1800.0, CrunchMath.SpoolSecondsForCoefficient(250.0, 0.25, 250.0, 5.0, 1800.0), 9);
+        Assert.Equal(902.5, CrunchMath.SpoolSecondsForCoefficient(0.5 * (0.25 + 250.0), 0.25, 250.0, 5.0, 1800.0), 6);
+    }
+
+    [Fact]
+    public void A_set_speed_outside_the_drives_range_needs_the_shortest_or_the_full_spool()
+    {
+        Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(0.01, 0.25, 250.0, 5.0, 1800.0), 9);
+        Assert.Equal(1800.0, CrunchMath.SpoolSecondsForCoefficient(900.0, 0.25, 250.0, 5.0, 1800.0), 9);
+    }
+
+    [Theory]
+    [InlineData(0.25)]
+    [InlineData(1.0)]
+    [InlineData(25.0)]
+    [InlineData(43.0)]
+    [InlineData(200.0)]
+    [InlineData(250.0)]
+    public void The_spool_for_a_speed_buys_exactly_that_speed(double c)
+    {
+        double seconds = CrunchMath.SpoolSecondsForCoefficient(c, 0.25, 250.0, 5.0, 1800.0);
+        Assert.Equal(c, CrunchMath.SpoolCoefficient(seconds, 0.25, 250.0, 5.0, 1800.0), 9);
+    }
+
+    [Fact]
+    public void A_drive_with_no_room_to_rise_needs_the_full_spool_for_anything_above_its_minimum()
+    {
+        Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(2.5, 2.5, 2.5, 5.0, 5.0), 9);
+        Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(3.0, 2.5, 2.5, 5.0, 5.0), 9);
+    }
+
+    [Fact]
+    public void A_leg_that_is_not_capped_takes_its_distance_over_its_speed()
+        => Assert.Equal(CrunchMath.SecondsForDistance(1e12, 10.0), CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 1e12, 0.1), 6);
+
+    [Fact]
+    public void A_leg_whose_speed_would_pass_the_peak_cap_is_flown_slower_and_takes_longer()
+    {
+        double meters = 2.5e10;   // A very short leg at 250c: it can only average half the peak.
+        double seconds = CrunchMath.SecondsToCover(250.0, 250.0, 7.5, meters, 0.1);
+        Assert.Equal(CrunchMath.SecondsForDistance(meters, 125.0), seconds, 6);
+    }
+
+    [Fact]
+    public void Nothing_to_cover_takes_no_time()
+    {
+        Assert.Equal(0.0, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 0.0, 0.1), 9);
+        Assert.Equal(0.0, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, -5.0, 0.1), 9);
+    }
+
+    [Fact]
+    public void Halfway_takes_half_as_long_as_the_whole_way_when_neither_is_capped()
+        => Assert.Equal(0.5, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 5e12, 0.1) / CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 1e13, 0.1), 9);
+
     // ---- Arrival ----
 
     [Fact]
