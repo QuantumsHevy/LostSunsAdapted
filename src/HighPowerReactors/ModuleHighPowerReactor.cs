@@ -57,7 +57,7 @@ namespace HighPowerReactors
             ReadSystemHeat(ref heat, ref outlet);
             if (heat > 0.0 || outlet > 0.0)
             {
-                sb.Append("\n\n").Append(ReactorText.Heading(ReactorText.ColorThermal, ReactorText.HeadingThermal));
+                sb.Append("\n\n").Append(ReactorText.HeadingPlain(ReactorText.ColorThermal, ReactorText.HeadingThermal));
                 if (heat > 0.0) sb.Append(ReactorText.InfoWasteHeat(heat));
                 if (outlet > 0.0) sb.Append(ReactorText.InfoOutletTemperature(outlet));
             }
