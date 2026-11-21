@@ -776,7 +776,9 @@ namespace CrunchDrives
         // this module's own cfg values, so it also works on the part's prefab, before any craft exists.
         public override string GetInfo()
         {
-            return CrunchText.ModuleInfo + CrunchText.ModuleInfoStats(Stats, SpoolEcPerSecond, SpoolRateMinEc, SpoolRateMaxEc);
+            DriveStats st = Stats;
+            double fullCharge = st.MaxSpoolSeconds * SpoolEcPerSecond;
+            return CrunchText.ModuleInfo + CrunchText.ModuleInfoStats(fullCharge, CrunchMath.MinChargeSeconds(fullCharge, SpoolRateMaxEc));
         }
 
         // IModuleInfo: how the part's tooltip and info panel title this module and summarise it in one line (the way an engine
@@ -791,9 +793,30 @@ namespace CrunchDrives
             return null;   // No custom panel; the text from GetInfo is shown.
         }
 
+        // The titles of the part's B9PartSwitch variants (its SUBTYPE nodes), joined with commas, or "" when it has fewer than two. Read from
+        // the part's own cfg. UNVERIFIED KSP API: AvailablePart.partConfig is set by the time the tooltip asks, and the module's own cfg node.
+        string VariantTitles()
+        {
+            try
+            {
+                AvailablePart info = part != null ? part.partInfo : null;
+                if (info == null || info.partConfig == null) return "";
+                List<string> titles = new List<string>();
+                foreach (ConfigNode m in info.partConfig.GetNodes("MODULE"))
+                {
+                    if (m.GetValue("name") != "ModuleB9PartSwitch") continue;
+                    foreach (ConfigNode sub in m.GetNodes("SUBTYPE"))
+                        titles.Add(sub.HasValue("title") ? sub.GetValue("title") : sub.GetValue("name"));
+                    if (titles.Count > 0) break;   // The first switch with subtypes is the part's variant list.
+                }
+                return titles.Count >= 2 ? string.Join(", ", titles.ToArray()) : "";
+            }
+            catch (Exception) { return ""; }
+        }
+
         public string GetPrimaryField()
         {
-            return CrunchText.PrimaryField(Stats.MaxSpeedC);
+            return CrunchText.PrimaryField(Stats.MaxSpeedC, VariantTitles());
         }
     }
 }

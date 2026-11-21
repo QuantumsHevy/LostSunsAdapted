@@ -122,6 +122,12 @@ namespace CrunchDrives.Core
             return cruiseC * C * (RampUpCumulative(end, rampSeconds) - RampUpCumulative(start, rampSeconds));
         }
 
+        // The shortest time a full charge can take: the charge it costs, drawn at the fastest rate the player can set.
+        public static double MinChargeSeconds(double fullChargeEc, double maxDrawEcPerSecond)
+        {
+            return maxDrawEcPerSecond > 0.0 ? Math.Max(0.0, fullChargeEc) / maxDrawEcPerSecond : 0.0;
+        }
+
         // How far ahead of the craft a crunch is checked for a dropout sphere in its way when it engages: the distance covered while the
         // speed ramps up (the first stretch of the crunch), but never less than minMeters.
         public static double FirstStretchMeters(double tierC, double rampSeconds, double minMeters)

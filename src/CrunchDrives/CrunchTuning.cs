@@ -41,8 +41,8 @@ namespace CrunchDrives
         public const double TubeRadiusFactor = 1.125;               // Tube radius = the ring's outer radius x this.
         public const double TubeCurve = 1.0;                        // How much the tube closes in toward its ends, 0..1: 0 = a straight tube of the ring's radius, 1 = the bubble-like ellipse closing to a point. Both ends are the same.
         public const double TubeFadeStart = 0.0;                    // Where the tube starts to fade out along its length, 0..2: 0 = at the ring itself (part of the craft shows through), 1 = once it has cleared the craft's outermost point, 2 = never (a solid tube that cuts off at its end). Both ends are the same.
-        public const int TubeSegments = 24;                         // Sides of the tube.
-        public const int TubeRings = 12;                            // Rings along each half of the tube, so the curve is smooth.
+        public const int TubeSegments = 36;                         // Sides of the tube.
+        public const int TubeRings = 18;                            // Rings along each half of the tube, so the curve is smooth.
         public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: dark at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
         public const double TubeFadeOutSeconds = 1.25;              // The tube shrinks back to the ring, and fades out from the brightness it had, over this long when the field is down.
         public const double TubeFitMaxFactor = 1.75;                // The tube is lengthened to cover wide parts far from the ring, but never past this x that part's distance from the ring. Parts wider than that stick out.

@@ -31,34 +31,24 @@ namespace CrunchDrives
         public const string ToggleOff = "Off";
         public const string StatusStandby = "Standby";
         public const string ActionPrimary = "Crunch Field";
-        public const string ModuleInfo = "By rapidly passing thousands of precisely-machined blades within nanometers of one another, crunch drives exploit the Casimir effect to create negative-energy fields that, when resonant, allow the space ahead of the vessel to be vastly compressed. This lets apparent superluminal velocities of up to 250c be achieved.";
+        public const string ModuleInfo = "Generates compressed spacetime fields relative to itself for faster than light travel.";
         public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
 
-        // The part's info in the VAB/SPH, laid out like the stock engines' lists: bold labels, then a "Requires" list in the stock green.
-        // Starts with "\n\n" so it follows ModuleInfo.
-        public static string ModuleInfoStats(DriveStats s, double ecPerSecond, double drawMinEc, double drawMaxEc)
+        // The module's section of the part's info in the VAB/SPH (under its title), laid out like other mods' custom modules. Starts with "\n\n" so it follows ModuleInfo.
+        public static string ModuleInfoStats(double fullChargeEc, double minChargeSeconds)
         {
             return string.Format(
-                "\n\n<b>Crunch Coefficient: </b>{0:G3}c - {1:G3}c" +
-                "\n<b>Charge Time: </b>{2} - {3}" +
-                "\n<b>Ramp Time: </b>{4}" +
-                "\n<b>Alignment Tolerance: </b>{5:F1} deg" +
-                "\n<b>Shortest Crunch: </b>{6}" +
-                "\n<b>Capture Assistance: </b>up to {7:P1} escape vel, {8} above surf/atm" +
-                "\n<b>Power Draw Rate: </b>{9:N0} - {10:N0} EC/s" +
-                "\n<b>Full Charge: </b>{11:N0} EC" +
-                "\n\n<b><color=#99ff00ff>Requires:</color></b>" +
-                "\n- <b>Electric Charge</b>: {12:N0}/sec",
-                s.MinSpeedC, s.MaxSpeedC, FormatDuration(s.MinSpoolSeconds), FormatDuration(s.MaxSpoolSeconds),
-                FormatDuration(s.RampSeconds), s.TargetAlignToleranceDeg, FormatDuration(s.MinCrunchSeconds),
-                s.CaptureSpeedFraction, FormatDistance(s.CaptureSafeAltitude), drawMinEc, drawMaxEc,
-                s.MaxSpoolSeconds * ecPerSecond, ecPerSecond);
+                "\n\n<b>Charge Required: </b>{0:N0} EC" +
+                "\n<b>Minimum Time to Charge: </b>{1:N0} s",
+                fullChargeEc, minChargeSeconds);
         }
 
-        // The one-line summary the VAB/SPH shows for the part, like "Max. Thrust" for an engine.
-        public static string PrimaryField(double maxSpeedC)
+        // The lines the VAB/SPH shows with the part's main stats, below Max. Temp. (like "Max. Thrust" for an engine). The variants line is
+        // left out when the part has fewer than two variants (variants is then empty).
+        public static string PrimaryField(double maxSpeedC, string variants)
         {
-            return string.Format("<b>Max. Crunch Coefficient: </b>{0:G3}c", maxSpeedC);
+            string speed = string.Format("<b>Max Speed: </b>{0:G3}c", maxSpeedC);
+            return variants.Length > 0 ? "<b>Variants Available: </b>" + variants + "\n" + speed : speed;
         }
 
         public static string FieldCoefficientValue(double tierC) { return string.Format("{0:G3}c", tierC); }

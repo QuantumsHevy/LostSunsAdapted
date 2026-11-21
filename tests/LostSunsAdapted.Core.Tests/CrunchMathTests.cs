@@ -609,6 +609,19 @@ public class CrunchMathTests
         Assert.True(hit.HasValue);
     }
 
+    // ---- Part info ----
+
+    [Fact]
+    public void The_fastest_full_charge_is_its_cost_over_the_highest_draw()
+        => Assert.Equal(180.0, CrunchMath.MinChargeSeconds(1800.0 * 5000.0, 50000.0), 9);
+
+    [Fact]
+    public void A_drive_with_no_draw_range_has_no_minimum_time_to_report()
+    {
+        Assert.Equal(0.0, CrunchMath.MinChargeSeconds(9e6, 0.0), 9);
+        Assert.Equal(0.0, CrunchMath.MinChargeSeconds(-5.0, 50000.0), 9);
+    }
+
     // ---- Arrival ----
 
     [Fact]
