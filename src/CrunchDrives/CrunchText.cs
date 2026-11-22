@@ -44,11 +44,11 @@ namespace CrunchDrives
         }
 
         // The lines the VAB/SPH shows with the part's main stats, below Max. Temp. (like "Max. Thrust" for an engine). The variants line is
-        // left out when the part has fewer than two variants (variants is then empty).
-        public static string PrimaryField(double maxSpeedC, string variants)
+        // left out when the part has fewer than two variants.
+        public static string PrimaryField(double maxSpeedC, double attitudeToleranceDeg, int variantCount)
         {
-            string speed = string.Format("<b>Max Speed: </b>{0:G3}c", maxSpeedC);
-            return variants.Length > 0 ? "<b>Variants Available: </b>" + variants + "\n" + speed : speed;
+            string text = string.Format("<b>Max. Speed:</b> {0:G3} c\n<b>Attitude Tolerance:</b> {1:F2}\u00b0", maxSpeedC, attitudeToleranceDeg);
+            return variantCount >= 2 ? text + "\n\nVariants available: " + variantCount : text;
         }
 
         public static string FieldCoefficientValue(double tierC) { return string.Format("{0:G3}c", tierC); }
