@@ -28,6 +28,7 @@ namespace CrunchDrives
         // ---- Part stats (set in the part's cfg; missing or 0 = the CrunchTuning default of the same name) ----
         // Only the primary drive's stats count; the controller takes a copy when a spool starts.
 
+        [KSPField(isPersistant = false)] public string variantSwitchID = "meshSwitch";   // The moduleID of the part's B9PartSwitch that holds its variants, for the count in the part info.
         [KSPField(isPersistant = false)] public double minSpeedC = 0.0;                // Average speed (c) of the shortest spool.
         [KSPField(isPersistant = false)] public double maxSpeedC = 0.0;                // Average speed (c) of a full spool, and the cap on the peak speed of any crunch.
         [KSPField(isPersistant = false)] public double rampSeconds = 0.0;              // Ramp-up and ramp-down duration of every crunch.
@@ -799,30 +800,28 @@ namespace CrunchDrives
             return null;   // No custom panel; the text from GetInfo is shown.
         }
 
-        // The titles of the part's B9PartSwitch variants (its SUBTYPE nodes), joined with commas, or "" when it has fewer than two. Read from
-        // the part's own cfg. UNVERIFIED KSP API: AvailablePart.partConfig is set by the time the tooltip asks, and the module's own cfg node.
-        string VariantTitles()
+        // How many variants the part has: the SUBTYPE nodes of its B9PartSwitch module with the moduleID in variantSwitchID. Other switches
+        // (a repaint switch another mod adds to every part, say) are not counted. Read from the part's own cfg. UNVERIFIED KSP API:
+        // AvailablePart.partConfig is set by the time the tooltip asks.
+        int VariantCount()
         {
             try
             {
                 AvailablePart info = part != null ? part.partInfo : null;
-                if (info == null || info.partConfig == null) return "";
-                List<string> titles = new List<string>();
+                if (info == null || info.partConfig == null) return 0;
                 foreach (ConfigNode m in info.partConfig.GetNodes("MODULE"))
                 {
-                    if (m.GetValue("name") != "ModuleB9PartSwitch") continue;
-                    foreach (ConfigNode sub in m.GetNodes("SUBTYPE"))
-                        titles.Add(sub.HasValue("title") ? sub.GetValue("title") : sub.GetValue("name"));
-                    if (titles.Count > 0) break;   // The first switch with subtypes is the part's variant list.
+                    if (m.GetValue("name") != "ModuleB9PartSwitch" || m.GetValue("moduleID") != variantSwitchID) continue;
+                    return m.GetNodes("SUBTYPE").Length;
                 }
-                return titles.Count >= 2 ? string.Join(", ", titles.ToArray()) : "";
+                return 0;
             }
-            catch (Exception) { return ""; }
+            catch (Exception) { return 0; }
         }
 
         public string GetPrimaryField()
         {
-            return CrunchText.PrimaryField(Stats.MaxSpeedC, Stats.TargetAlignToleranceDeg, VariantTitles());
+            return CrunchText.PrimaryField(Stats.MaxSpeedC, Stats.TargetAlignToleranceDeg, VariantCount());
         }
     }
 }
