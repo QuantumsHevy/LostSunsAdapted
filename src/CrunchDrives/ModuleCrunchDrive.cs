@@ -28,7 +28,6 @@ namespace CrunchDrives
         // ---- Part stats (set in the part's cfg; missing or 0 = the CrunchTuning default of the same name) ----
         // Only the primary drive's stats count; the controller takes a copy when a spool starts.
 
-        [KSPField(isPersistant = false)] public string variantSwitchID = "meshSwitch";   // The moduleID of the part's B9PartSwitch that holds its variants, for the count in the part info.
         [KSPField(isPersistant = false)] public double minSpeedC = 0.0;                // Average speed (c) of the shortest spool.
         [KSPField(isPersistant = false)] public double maxSpeedC = 0.0;                // Average speed (c) of a full spool, and the cap on the peak speed of any crunch.
         [KSPField(isPersistant = false)] public double rampSeconds = 0.0;              // Ramp-up and ramp-down duration of every crunch.
@@ -192,6 +191,10 @@ namespace CrunchDrives
          UI_FloatEdit(scene = UI_Scene.All, minValue = 1f, maxValue = MaxManualSeconds, incrementLarge = 60f, incrementSmall = 10f, incrementSlide = 1f, sigFigs = 0)]
         public float crunchSeconds = 10f;
 
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.ToggleIgnoreDropout, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle, groupStartCollapsed = false),
+         UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.All)]
+        public bool ignoreDropout = false;
+
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonFillHalf, active = false, groupName = ManualGroup, groupDisplayName = CrunchText.GroupManualTitle)]
         public void FillHalfEvent() { FillSeconds(0.5); }
 
@@ -220,7 +223,7 @@ namespace CrunchDrives
         };
 
         static readonly string[] ButtonEvents = { nameof(PrimaryEvent), nameof(CancelEvent), nameof(DirectionEvent), nameof(FillHalfEvent), nameof(FillFullEvent) };
-        static readonly string[] ManualFields = { nameof(manualSet), nameof(manualSpeedC), nameof(crunchSeconds) };
+        static readonly string[] ManualFields = { nameof(manualSet), nameof(manualSpeedC), nameof(crunchSeconds), nameof(ignoreDropout) };
 
         // The tube of light, parented to this part. Only the primary drive shows one.
         CrunchTube tube;
@@ -381,6 +384,7 @@ namespace CrunchDrives
             SetManualVisible(nameof(manualSet), show);
             SetManualVisible(nameof(manualSpeedC), show && ManualSetsSpeed());
             SetManualVisible(nameof(crunchSeconds), show && ManualSetsTime());
+            SetManualVisible(nameof(ignoreDropout), show);
         }
 
         // Part modules are MonoBehaviours, so Update also runs in the VAB/SPH (OnUpdate does not). UNVERIFIED: that toggling guiActiveEditor
@@ -442,7 +446,7 @@ namespace CrunchDrives
             coefficientLine = CrunchText.FieldCoefficientValue(CrunchController.ActiveTierC);
             SetVisible(nameof(coefficientLine), phase != CrunchPhase.Idle);
 
-            spoolLine = CrunchText.FieldSpoolValue(CrunchController.SpoolSecondsPaid, CrunchController.ActiveTierC);
+            spoolLine = CrunchText.FieldSpoolValue(CrunchController.SpoolSecondsPaid);
             SetVisible(nameof(spoolLine), spooling);
 
             SetVisible(nameof(spoolDraw), !crunching);   // The draw can be changed before and during a spool.
@@ -610,6 +614,7 @@ namespace CrunchDrives
             CrunchTuning.CrunchSeconds = crunchSeconds;
             CrunchTuning.CaptureAssist = captureAssist;
             CrunchTuning.LoosenStart = loosenStart;
+            CrunchTuning.IgnoreDropout = ignoreDropout;
             CrunchTuning.SasRetrograde = sasRetrograde;
         }
 
@@ -794,28 +799,30 @@ namespace CrunchDrives
             return null;   // No custom panel; the text from GetInfo is shown.
         }
 
-        // How many variants the part has: the SUBTYPE nodes of its B9PartSwitch module with the moduleID in variantSwitchID. Other switches
-        // (a repaint switch another mod adds to every part, say) are not counted. Read from the part's own cfg. UNVERIFIED KSP API:
-        // AvailablePart.partConfig is set by the time the tooltip asks.
-        int VariantCount()
+        // The titles of the part's B9PartSwitch variants (its SUBTYPE nodes), joined with commas, or "" when it has fewer than two. Read from
+        // the part's own cfg. UNVERIFIED KSP API: AvailablePart.partConfig is set by the time the tooltip asks, and the module's own cfg node.
+        string VariantTitles()
         {
             try
             {
                 AvailablePart info = part != null ? part.partInfo : null;
-                if (info == null || info.partConfig == null) return 0;
+                if (info == null || info.partConfig == null) return "";
+                List<string> titles = new List<string>();
                 foreach (ConfigNode m in info.partConfig.GetNodes("MODULE"))
                 {
-                    if (m.GetValue("name") != "ModuleB9PartSwitch" || m.GetValue("moduleID") != variantSwitchID) continue;
-                    return m.GetNodes("SUBTYPE").Length;
+                    if (m.GetValue("name") != "ModuleB9PartSwitch") continue;
+                    foreach (ConfigNode sub in m.GetNodes("SUBTYPE"))
+                        titles.Add(sub.HasValue("title") ? sub.GetValue("title") : sub.GetValue("name"));
+                    if (titles.Count > 0) break;   // The first switch with subtypes is the part's variant list.
                 }
-                return 0;
+                return titles.Count >= 2 ? string.Join(", ", titles.ToArray()) : "";
             }
-            catch (Exception) { return 0; }
+            catch (Exception) { return ""; }
         }
 
         public string GetPrimaryField()
         {
-            return CrunchText.PrimaryField(Stats.MaxSpeedC, Stats.TargetAlignToleranceDeg, VariantCount());
+            return CrunchText.PrimaryField(Stats.MaxSpeedC, Stats.TargetAlignToleranceDeg, VariantTitles());
         }
     }
 }

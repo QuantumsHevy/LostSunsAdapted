@@ -106,6 +106,7 @@ namespace CrunchDrives
         public static bool ManualSetTime = true;                    // Manual mode: the player sets the duration (CrunchSeconds). If not, the crunch has no end: the speed ramps up once and stays there until the player collapses the field or the craft drops out.
         public static double ManualSpeedC = 1.0;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
         public static double CrunchSeconds = 45.0;                  // Manual mode: the duration when ManualSetTime is on.
+        public static bool IgnoreDropout = false;                   // Manual mode only: the crunch ignores every dropout sphere, the one it starts in and the target's too, so only the player (or the time set) ends it, and the player risks collisions. A spool still cannot start inside a sphere (unless Loosen Start Conditions is on).
         public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
         public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.
         public static bool AllowWarp = true;                        // The spool and long crunches may run under time warp. EXPERIMENTAL.

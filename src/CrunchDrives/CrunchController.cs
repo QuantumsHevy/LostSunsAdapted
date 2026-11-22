@@ -81,6 +81,7 @@ namespace CrunchDrives
             public double duration;
             public double ramp;          // Share of the leg each speed ramp takes.
             public bool warpOk;          // The leg is long enough for on-rails time warp.
+            public bool ignoreSpheres;   // Manual mode with Ignore Dropout Spheres: no dropout sphere ends the crunch or stops it from engaging.
             public bool openEnded;       // The leg has no end: it ramps up and holds its speed until the field collapses.
             public bool closedLoop;      // The leg's length is tied to the distance to the target's stopping point.
             public double endFraction;   // Share of the starting stop distance still left when the leg ends (0 = all the way).
@@ -163,6 +164,7 @@ namespace CrunchDrives
         bool activeWarpOk;          // This leg is long enough for on-rails time warp.
         double activeDuration;      // Length of the current crunch leg, in seconds.
         double activeRamp;          // Ramp-up and ramp-down of the current leg, each as a fraction of the leg.
+        bool ignoreSpheres;         // The current crunch ignores every dropout sphere (Manual mode only).
         bool openEnded;             // The current leg has no duration (Manual mode, no time set): only a ramp-up, then a steady speed.
         double elapsed;             // Game seconds since the current leg began.
         double traveled;            // Total commanded displacement, in meters.
@@ -609,10 +611,14 @@ namespace CrunchDrives
 
             // Starting inside a dropout zone is refused, unless Loosen Start Conditions is on: then a spool may start there, and a crunch
             // may start there as long as it heads out of the zone (checked below, once the heading is known).
+            // Manual mode can ignore the spheres once the crunch starts: the spool's own start check (physics: the blades cannot spin up there)
+            // still applies, but an engage no longer checks them.
+            bool ignoreSpheres = CrunchTuning.IgnoreDropout && CrunchTuning.Mode == TravelMode.Manual;
             Vector3d p = v.GetWorldPos3D();
             bool loose = CrunchTuning.LoosenStart;
             foreach (CelestialBody b in FlightGlobals.Bodies)
             {
+                if (engaging && ignoreSpheres) break;
                 double r = DropoutRadius(b);
                 if ((p - b.position).sqrMagnitude < r * r && !loose)
                 { Refuse(CrunchText.RefuseZone(b.name)); return false; }
@@ -653,7 +659,7 @@ namespace CrunchDrives
             }
 
             // Loosened, a crunch may leave a dropout zone it starts in, but not head deeper into it.
-            if (loose && engaging)
+            if (loose && engaging && !ignoreSpheres)
             {
                 foreach (CelestialBody b in FlightGlobals.Bodies)
                 {
@@ -683,7 +689,7 @@ namespace CrunchDrives
             // At engage, the first stretch of the path (the distance covered while the speed ramps up, and no further than the leg goes) is
             // checked against every dropout sphere except the target's own and those the craft is leaving: a crunch that would collapse at
             // once is refused, so the spool is not wasted. It stays Ready and can be engaged again after the craft turns or drifts.
-            if (engaging)
+            if (engaging && !ignoreSpheres)
             {
                 double legMeters = open ? double.PositiveInfinity : (timed ? tier * CrunchMath.C * fixedSeconds : meters);
                 double stretch = System.Math.Min(legMeters, CrunchMath.FirstStretchMeters(tier, stats.RampSeconds, 1000.0));
@@ -742,6 +748,7 @@ namespace CrunchDrives
             plan.ramp = ramp;
             plan.warpOk = warpOk;
             plan.openEnded = open;
+            plan.ignoreSpheres = ignoreSpheres;
             plan.closedLoop = locked && CrunchTuning.Mode != TravelMode.Manual;
             plan.endFraction = twoLegPlan ? 0.5 : 0.0;
             return true;
@@ -802,6 +809,8 @@ namespace CrunchDrives
             activeDuration = plan.duration;
             activeRamp = plan.ramp;
             openEnded = plan.openEnded;
+            ignoreSpheres = plan.ignoreSpheres;
+            if (ignoreSpheres) Debug.Log(CrunchText.LogSpheresIgnored);
             legClosedLoop = plan.closedLoop;
             legEndFraction = plan.endFraction;
             legEndStop = -1.0;
@@ -1106,6 +1115,7 @@ namespace CrunchDrives
             activeDuration = duration;
             activeRamp = RampFor(duration);
             openEnded = false;
+            ignoreSpheres = false;
             legClosedLoop = true;
             legEndFraction = 0.0;
             legEndStop = -1.0;
@@ -1637,7 +1647,7 @@ namespace CrunchDrives
                     {
                         Debug.Log(string.Format("[CrunchDrive] Spool ran dry after {0:F1} s: {1:N0} EC drawn, asking for {2:N0} EC/s, {3:N0} EC left on the craft.",
                             spoolElapsed, spoolCharge, spoolRate, ReadStored(v)));
-                        End(CrunchText.StopNoCharge(spoolCharge, spoolRate));
+                        End(CrunchText.StopNoCharge(spoolCharge));
                     }
                     else
                     {
@@ -1742,6 +1752,7 @@ namespace CrunchDrives
             CelestialBody hit = null;
             foreach (CelestialBody b in FlightGlobals.Bodies)
             {
+                if (ignoreSpheres) break;   // Manual mode: no sphere ends this crunch.
                 Vector3d centre = BodyPos(b, exact, ut);
                 double radius = DropoutRadius(b);
                 if (departingZones.Contains(b))
