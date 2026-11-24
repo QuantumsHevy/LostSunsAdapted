@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text;
 
 namespace HighPowerReactors
@@ -53,13 +52,13 @@ namespace HighPowerReactors
             sb.Append(string.IsNullOrEmpty(infoText) ? ReactorText.ModuleInfo : infoText);
             sb.Append(ReactorText.InfoCharge(startupChargeEc, startupChargeMinSeconds));
 
-            double heat = wasteHeatKw, outlet = outletTemperatureK;
-            ReadSystemHeat(ref heat, ref outlet);
-            if (heat > 0.0 || outlet > 0.0)
+            // With SystemHeat installed, its adapter adds the thermal block itself, at the first "\n\n" (after the charge lines), so this
+            // module leaves the section out: it would show twice. Without SystemHeat the block is written here from the cfg values.
+            if (!SystemHeatPresent() && (wasteHeatKw > 0.0 || outletTemperatureK > 0.0))
             {
                 sb.Append("\n\n").Append(ReactorText.HeadingPlain(ReactorText.ColorThermal, ReactorText.HeadingThermal));
-                if (heat > 0.0) sb.Append(ReactorText.InfoWasteHeat(heat));
-                if (outlet > 0.0) sb.Append(ReactorText.InfoOutletTemperature(outlet));
+                if (wasteHeatKw > 0.0) sb.Append(ReactorText.InfoWasteHeat(wasteHeatKw));
+                if (outletTemperatureK > 0.0) sb.Append(ReactorText.InfoOutletTemperature(outletTemperatureK));
             }
 
             sb.Append("\n\n").Append(ReactorText.Heading(ReactorText.ColorFuelModes, ReactorText.HeadingFuelModes));
@@ -94,33 +93,21 @@ namespace HighPowerReactors
             return def != null && !string.IsNullOrEmpty(def.displayName) ? def.displayName : resource;
         }
 
-        // With SystemHeat installed, its converter adapter holds the reactor's heat output and outlet temperature (the patch in
-        // Patches/SystemHeat.cfg), so they are read from it. It is found by name and read by reflection, because this plugin does not
-        // reference SystemHeat. UNVERIFIED: that the adapter's fields are called systemPower and systemOutletTemperature.
-        void ReadSystemHeat(ref double heatKw, ref double outletK)
+        // Whether SystemHeat is installed: its converter adapter is on the part (the patch in Patches/SystemHeat.cfg adds it), or its
+        // plugin is loaded. The adapter is found by name because this plugin does not reference SystemHeat. UNVERIFIED KSP API:
+        // AssemblyLoader.loadedAssemblies entries have a name.
+        bool SystemHeatPresent()
         {
-            if (part == null) return;
-            foreach (PartModule m in part.Modules)
-            {
-                if (m.GetType().Name != "ModuleSystemHeatBaseConverterAdapter") continue;
-                double v;
-                if (ReadNumber(m, "systemPower", out v) && v > 0.0) heatKw = v;
-                if (ReadNumber(m, "systemOutletTemperature", out v) && v > 0.0) outletK = v;
-                return;
-            }
-        }
-
-        static bool ReadNumber(object o, string field, out double value)
-        {
-            value = 0.0;
             try
             {
-                FieldInfo f = o.GetType().GetField(field, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (f == null) return false;
-                value = Convert.ToDouble(f.GetValue(o));
-                return true;
+                if (part != null)
+                    foreach (PartModule m in part.Modules)
+                        if (m.GetType().Name == "ModuleSystemHeatBaseConverterAdapter") return true;
+                foreach (AssemblyLoader.LoadedAssembly a in AssemblyLoader.loadedAssemblies)
+                    if (a.name == "SystemHeat") return true;
             }
-            catch (Exception) { return false; }
+            catch (Exception) { }
+            return false;
         }
 
         public override void OnUpdate()

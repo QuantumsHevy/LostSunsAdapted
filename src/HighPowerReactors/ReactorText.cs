@@ -15,14 +15,19 @@ namespace HighPowerReactors
         public static string HeadingPlain(string color, string text) { return "<color=" + color + ">" + text + "</color>"; }   // Coloured, not bold.
         public static string Heading(string color, string text) { return "<b><color=" + color + ">" + text + "</color></b>"; }
 
-        // Lines start with "\n" so they can be strung together.
+        // Lines start with "\n" so they can be strung together. Numbers are plain, with no thousands separators.
+        //
+        // SystemHeat edits the module's info: it inserts its own Thermal Parameters block (Heat Generated, Outlet Temperature, Max. Temperature)
+        // in front of the FIRST blank line ("\n\n") it finds in the text. So the blank line after the description is written "\n \n" (with a
+        // space in it, which looks the same), and the first real "\n\n" comes right where the thermal block belongs: after the charge lines.
+        public const string BlankLine = "\n \n";
         public static string InfoCharge(double ec, double seconds)
         {
-            return string.Format("\n\n<b>Charge Required: </b>{0:N0} EC\n<b>Minimum Time to Charge: </b>{1:N0} s", ec, seconds);
+            return string.Format(BlankLine + "<b>Charge Required: </b>{0:F0} EC\n<b>Minimum Time to Charge: </b>{1:F0} s", ec, seconds);
         }
-        public static string InfoWasteHeat(double kilowatts) { return string.Format("\n- <b>Waste Heat: </b>{0:N0} kW", kilowatts); }
-        public static string InfoOutletTemperature(double kelvin) { return string.Format("\n- <b>Outlet Temperature: </b>{0:N0} K", kelvin); }
-        public static string InfoPower(double kilowatts) { return string.Format("\n- <b>Power Generated: </b>{0:N0} kW", kilowatts); }
+        public static string InfoWasteHeat(double kilowatts) { return string.Format("\n- <b>Waste Heat: </b>{0:F0} kW", kilowatts); }
+        public static string InfoOutletTemperature(double kelvin) { return string.Format("\n- <b>Outlet Temperature: </b>{0:F0} K", kelvin); }
+        public static string InfoPower(double kilowatts) { return string.Format("\n- <b>Power Generated: </b>{0:F0} kW", kilowatts); }
         public const string InfoInputs = "\n- <b>Inputs:</b>";
         public const string InfoOutputs = "\n- <b>Outputs:</b>";
         public static string InfoResource(string name, double perSecond) { return string.Format("\n-- {0}: {1} u/s", name, perSecond.ToString("0.##########")); }

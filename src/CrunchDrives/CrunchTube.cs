@@ -9,7 +9,7 @@ namespace CrunchDrives
     // 1 = an ellipse closing to a point), and CrunchTuning.TubeFadeStart where it starts to fade out along its length (0 = at the
     // ring, 1 = at the craft's outermost points with no padding past them, 2 = never, so it cuts off). Both ends are the same.
     // It is at its full length the moment the field forms, and its
-    // brightness follows the craft's live speed (dark at rest, full from 1c up). When the field is down it fades out (see below). The flash, the tube and its light are one effect: all on, or all off. While the field is
+    // brightness follows the craft's live speed (CrunchTuning.TubeMinBrightness at rest, full from 1c up). When the field is down it fades out (see below). The flash, the tube and its light are one effect: all on, or all off. While the field is
     // up the tube's length pulses with the flicker (it only ever stretches past its measured length, never shrinks below it,
     // so the craft stays covered), and however small the craft, each end of the tube is at least one ring diameter long.
     //
@@ -418,7 +418,7 @@ namespace CrunchDrives
         // on is true for as long as the crunch field is up, and only then. Call every frame (LateUpdate suits it best: the flash
         // turns to face the camera, which has finished moving by then); it allocates nothing.
         // The tube is at its full length while the field is up, and its brightness is 'intensity' (0..1, from the craft's live speed:
-        // dark at rest, full at 1c and above). When the field goes down it fades out from the brightness
+        // at its minimum at rest, full at 1c and above). When the field goes down it fades out from the brightness
         // it had (it keeps its length), so pass the last intensity while on is false. Each time on changes, the flash goes off, whatever the brightness; when it
         // goes false, the burst tube also appears (see the top of this class).
         public void Tick(float dt, bool on, float intensity)

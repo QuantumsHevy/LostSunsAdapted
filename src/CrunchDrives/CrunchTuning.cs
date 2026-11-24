@@ -44,8 +44,9 @@ namespace CrunchDrives
         public const double TubeBurstFadeStart = 1.0;               // The same as TubeFadeStart, for the tube that appears at full brightness when the crunch ends (it has the same curve and size as the tube during the crunch): 0 = fading from the ring, 1 = once it has cleared the craft's outermost point, 2 = a solid tube that cuts off. It fades out over TubeFadeOutSeconds.
         public const int TubeSegments = 36;                         // Sides of the tube.
         public const int TubeRings = 18;                            // Rings along each half of the tube, so the curve is smooth.
-        public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: dark at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
-        public const double TubeFadeOutSeconds = 1.25;              // The tube shrinks back to the ring, and fades out from the brightness it had, over this long when the field is down.
+        public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: at TubeMinBrightness at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
+        public const double TubeMinBrightness = 0.25;               // The dimmest the tube gets while the crunch field is up, 0..1: its brightness at 0c (as the field forms and as the speed falls away at the end). 0 = fully transparent at rest. It still brightens in a straight line to full at TubeFullBrightnessC.
+        public const double TubeFadeOutSeconds = 1.375;             // The tube shrinks back to the ring, and fades out from the brightness it had, over this long when the field is down.
         public const double TubeFitMaxFactor = 1.75;                // The tube is lengthened to cover wide parts far from the ring, but never past this x that part's distance from the ring. Parts wider than that stick out.
         public const double TubeLightIntensity = 2.5;               // Point light at the ring, part of the same effect.
         public const double TubeLightRangeFactor = 1.25;            // The light reaches this x the craft's length.

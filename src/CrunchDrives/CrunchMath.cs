@@ -168,6 +168,14 @@ namespace CrunchDrives.Core
             return Math.Min(1.0, speedC / fullAtC);
         }
 
+        // Brightness (0..1) of the tube of light while the crunch field is up: minBrightness at rest, rising in a straight line to full at
+        // fullAtC, so the tube never goes fully transparent unless minBrightness is zero.
+        public static double TubeBrightness(double speedC, double fullAtC, double minBrightness)
+        {
+            double min = minBrightness > 0.0 ? Math.Min(1.0, minBrightness) : 0.0;
+            return min + (1.0 - min) * SpeedIntensity(speedC, fullAtC);
+        }
+
         // Where a live speed sits between rest (0) and the drive's top speed topC (1), on a logarithmic scale, so the sublight
         // part of the range is as audible as the part far above it (on a straight line 1c is 0.4% of 250c and would not
         // be heard). Used to pitch the crunch field's sound.

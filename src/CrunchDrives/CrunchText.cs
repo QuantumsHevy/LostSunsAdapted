@@ -38,8 +38,8 @@ namespace CrunchDrives
         public static string ModuleInfoStats(double fullChargeEc, double minChargeSeconds)
         {
             return string.Format(
-                "\n\n<b>Charge Required: </b>{0:N0} EC" +
-                "\n<b>Minimum Time to Charge: </b>{1:N0} s",
+                "\n\n<b>Charge Required: </b>{0:F0} EC" +
+                "\n<b>Minimum Time to Charge: </b>{1:F0} s",
                 fullChargeEc, minChargeSeconds);
         }
 

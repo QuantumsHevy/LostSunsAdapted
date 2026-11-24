@@ -581,7 +581,7 @@ namespace CrunchDrives
 
         // ---- Tube of light ----
         // Shown for exactly as long as the crunch field is up: from engage until dropout, and not during the mid-course turn.
-        // Its brightness follows the live speed (dark at 0c, full at CrunchTuning.TubeFullBrightnessC and above). The last brightness
+        // Its brightness follows the live speed (CrunchTuning.TubeMinBrightness at 0c, full at CrunchTuning.TubeFullBrightnessC and above). The last brightness
         // is kept while the field is down, so the tube fades out from where it was.
         // The craft is measured at the start of every spool, so the tube is ready when the field forms.
 
@@ -594,7 +594,7 @@ namespace CrunchDrives
             if (spooling && !tubeWasSpooling && (!CrunchController.IsTurning || !tube.IsBuilt)) tube.Measure(part, vessel);
             tubeWasSpooling = spooling;
 
-            if (field) tubeIntensity = (float)CrunchMath.SpeedIntensity(speedC, CrunchTuning.TubeFullBrightnessC);
+            if (field) tubeIntensity = (float)CrunchMath.TubeBrightness(speedC, CrunchTuning.TubeFullBrightnessC, CrunchTuning.TubeMinBrightness);
             tube.Tick(Time.deltaTime, field, tubeIntensity);
         }
 

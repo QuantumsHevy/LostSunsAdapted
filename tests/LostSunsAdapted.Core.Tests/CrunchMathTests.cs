@@ -271,6 +271,49 @@ public class CrunchMathTests
     }
 
     [Fact]
+    public void The_tube_never_drops_below_its_minimum_brightness_while_the_field_is_up()
+    {
+        Assert.Equal(0.125, CrunchMath.TubeBrightness(0.0, 1.0, 0.125), 9);
+        Assert.Equal(0.125, CrunchMath.TubeBrightness(double.NaN, 1.0, 0.125), 9);
+        Assert.Equal(0.125, CrunchMath.TubeBrightness(-2.0, 1.0, 0.125), 9);
+    }
+
+    [Fact]
+    public void The_tube_still_reaches_full_brightness_at_the_given_speed()
+    {
+        Assert.Equal(1.0, CrunchMath.TubeBrightness(1.0, 1.0, 0.125), 9);
+        Assert.Equal(1.0, CrunchMath.TubeBrightness(250.0, 1.0, 0.125), 9);
+    }
+
+    [Fact]
+    public void The_tube_brightens_in_a_straight_line_from_its_minimum_to_full()
+    {
+        Assert.Equal(0.5625, CrunchMath.TubeBrightness(0.5, 1.0, 0.125), 9);   // Halfway between 0.125 and 1.
+        Assert.Equal(0.25, CrunchMath.TubeBrightness(0.25, 1.0, 0.0), 9);
+    }
+
+    [Fact]
+    public void A_zero_minimum_brightness_is_the_plain_speed_intensity()
+    {
+        for (int i = 0; i <= 40; i++)
+            Assert.Equal(CrunchMath.SpeedIntensity(i * 0.05, 1.0), CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.0), 9);
+    }
+
+    [Fact]
+    public void A_minimum_brightness_outside_0_to_1_is_kept_in_range()
+    {
+        Assert.Equal(1.0, CrunchMath.TubeBrightness(0.0, 1.0, 3.0), 9);
+        Assert.Equal(0.0, CrunchMath.TubeBrightness(0.0, 1.0, -1.0), 9);
+    }
+
+    [Fact]
+    public void A_brighter_minimum_is_never_dimmer_at_any_speed()
+    {
+        for (int i = 0; i <= 40; i++)
+            Assert.True(CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.2) >= CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.1) - 1e-12);
+    }
+
+    [Fact]
     public void The_field_is_at_the_lowest_pitch_at_rest_and_the_highest_at_the_drives_top_speed()
     {
         Assert.Equal(0.0, CrunchMath.SpeedPitchFraction(0.0, 250.0), 9);
