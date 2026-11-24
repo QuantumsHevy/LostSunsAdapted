@@ -348,8 +348,8 @@ namespace CrunchDrives
             phase = CrunchPhase.Ready;
             Status = CrunchText.StatusReady;
             ReleaseWarp();   // The player is back at normal speed once the drive is ready.
-            Debug.Log(string.Format("[CrunchDrive] Spool done in {0:F1} s ({1}): {2:N0} EC drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
-                spoolElapsed, full ? "full spool" : (dry ? "out of charge" : "engaged"), spoolCharge, spoolSeconds, spoolTier));
+            Debug.Log(string.Format("[CrunchDrive] Spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
+                spoolElapsed, full ? "full spool" : (dry ? "out of charge" : "engaged"), CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
             if (full) Post(CrunchText.MsgSpoolFull(spoolTier));
             else if (dry) Post(CrunchText.MsgSpoolDry(spoolTier));
         }
@@ -364,8 +364,8 @@ namespace CrunchDrives
 
             spoolFinished = true;
             spoolTier = SpoolTierFor(spoolSeconds);
-            Debug.Log(string.Format("[CrunchDrive] Second spool done in {0:F1} s ({1}): {2:N0} EC drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
-                spoolElapsed, full ? "full spool" : "out of charge", spoolCharge, spoolSeconds, spoolTier));
+            Debug.Log(string.Format("[CrunchDrive] Second spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
+                spoolElapsed, full ? "full spool" : "out of charge", CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
             if (dry) Post(CrunchText.MsgSpoolDry(spoolTier));
             return true;
         }
@@ -791,10 +791,10 @@ namespace CrunchDrives
             LockOutEngines(v);
             Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate, false);
 
-            Debug.Log(string.Format("[CrunchDrive] Spool: drawing {0:N0} EC/s ({6:N0} EC per spool second) from {1:N0} EC stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
-                spoolRate, stored, stats.MinSpeedC, stats.MinSpoolSeconds, stats.MaxSpeedC, stats.MaxSpoolSeconds, spoolNominal));
-            Debug.Log(string.Format("[CrunchDrive] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4:N0} m above the surface, glow over {5:F1} spool seconds.",
-                stats.RampSeconds, stats.TargetAlignToleranceDeg, stats.MinCrunchSeconds, stats.CaptureSpeedFraction, stats.CaptureSafeAltitude, stats.GlowSpoolSeconds));
+            Debug.Log(string.Format("[CrunchDrive] Spool: drawing {0} ({6} per spool second) from {1} stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
+                CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), CrunchMath.FormatScaled(stored, "EC", 1e6), stats.MinSpeedC, stats.MinSpoolSeconds, stats.MaxSpeedC, stats.MaxSpoolSeconds, CrunchMath.FormatScaled(spoolNominal, "EC", 1e6)));
+            Debug.Log(string.Format("[CrunchDrive] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4} above the surface, glow over {5:F1} spool seconds.",
+                stats.RampSeconds, stats.TargetAlignToleranceDeg, stats.MinCrunchSeconds, stats.CaptureSpeedFraction, CrunchMath.FormatScaled(stats.CaptureSafeAltitude, "m"), stats.GlowSpoolSeconds));
             Post(CrunchText.MsgSpoolStartOpen);
         }
 
@@ -858,8 +858,8 @@ namespace CrunchDrives
                 double r = DropoutRadius(b);
                 if ((p - b.position).sqrMagnitude >= r * r) continue;
                 departingZones.Add(b);
-                Debug.Log(string.Format("[CrunchDrive] Loosened start: leaving {0}'s dropout zone ({1:N0} m from its centre, zone radius {2:N0} m); it is not scanned until the craft is clear.",
-                    b.name, (p - b.position).magnitude, r));
+                Debug.Log(string.Format("[CrunchDrive] Loosened start: leaving {0}'s dropout zone ({1} from its centre, zone radius {2}); it is not scanned until the craft is clear.",
+                    b.name, CrunchMath.FormatScaled((p - b.position).magnitude, "m"), CrunchMath.FormatScaled(r, "m")));
             }
         }
 
@@ -981,8 +981,8 @@ namespace CrunchDrives
 
             turnSpooling = true;
             BeginSpool(v, firstSpoolSeconds);
-            Debug.Log(string.Format("[CrunchDrive] Second spool{5}: drawing {0:N0} EC/s for {1:F1} s to match the first leg's {2:G4}c, {3:N0} EC stored, {4:E3} m to go.",
-                spoolRate, firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), ReadStored(v), remaining0,
+            Debug.Log(string.Format("[CrunchDrive] Second spool{5}: drawing {0} for {1:F1} s to match the first leg's {2:G4}c, {3} stored, {4} to go.",
+                CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), CrunchMath.FormatScaled(ReadStored(v), "EC", 1e6), CrunchMath.FormatScaled(remaining0, "m"),
                 CrunchTuning.LoosenStart ? " (loosened: spooling while the craft is still turning)" : ""));
             Post(CrunchText.MsgSpoolStart(firstSpoolSeconds));
             return true;
@@ -1645,8 +1645,8 @@ namespace CrunchDrives
                     // The craft ran out of charge. The spool ends and the speed stays where it got to, unless it never got past the minimum.
                     if (spoolSeconds < stats.MinSpoolSeconds)
                     {
-                        Debug.Log(string.Format("[CrunchDrive] Spool ran dry after {0:F1} s: {1:N0} EC drawn, asking for {2:N0} EC/s, {3:N0} EC left on the craft.",
-                            spoolElapsed, spoolCharge, spoolRate, ReadStored(v)));
+                        Debug.Log(string.Format("[CrunchDrive] Spool ran dry after {0:F1} s: {1} drawn, asking for {2}, {3} left on the craft.",
+                            spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), CrunchMath.FormatScaled(ReadStored(v), "EC", 1e6)));
                         End(CrunchText.StopNoCharge(spoolCharge));
                     }
                     else

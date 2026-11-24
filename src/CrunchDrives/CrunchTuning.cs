@@ -41,7 +41,7 @@ namespace CrunchDrives
         public const double TubeRadiusFactor = 1.125;               // Tube radius = the ring's outer radius x this.
         public const double TubeCurve = 1.0;                        // How much the tube closes in toward its ends, 0..1: 0 = a straight tube of the ring's radius, 1 = the bubble-like ellipse closing to a point. Both ends are the same.
         public const double TubeFadeStart = 0.0;                    // Where the tube starts to fade out along its length, 0..2: 0 = at the ring itself (part of the craft shows through), 1 = once it has cleared the craft's outermost point, 2 = never (a solid tube that cuts off at its end). Both ends are the same.
-        public const double TubeBurstFadeStart = 1.0;               // The same as TubeFadeStart, for the tube that appears at full brightness when the crunch ends (it has the same curve and size as the tube during the crunch): 0 = fading from the ring, 1 = once it has cleared the craft's outermost point, 2 = a solid tube that cuts off. It fades out over TubeFadeOutSeconds.
+        public const double TubeBurstFadeStart = 0.0;               // The same as TubeFadeStart, for the tube that appears at full brightness when the crunch ends (it has the same curve and size as the tube during the crunch): 0 = fading from the ring, 1 = once it has cleared the craft's outermost point, 2 = a solid tube that cuts off. It fades out over TubeFadeOutSeconds.
         public const int TubeSegments = 36;                         // Sides of the tube.
         public const int TubeRings = 18;                            // Rings along each half of the tube, so the curve is smooth.
         public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: at TubeMinBrightness at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
@@ -81,10 +81,10 @@ namespace CrunchDrives
         public const double TurnProbeSeconds = 0.125;       // Duration of each calibration stage.
         public const double TurnProbeInput = 0.25;          // Calibration: control input used for the test pulses (0..1).
         public const double TurnMinAuthority = 1e-4;        // Calibration: below this rad/s^2 per full input, an axis counts as having no torque.
-        public const double TurnMaxRateDegPerSec = 60.0;    // Never turn faster than this.
-        public const double TurnBrakingMargin = 0.5;        // Plan the braking with this fraction of the craft's angular acceleration.
-        public const double TurnRateGain = 1.0;             // Close to the target the turning rate is this x the remaining angle (per second).
-        public const double TurnResponseSeconds = 0.5;      // The rate error is corrected over about this long.
+        public const double TurnMaxRateDegPerSec = 90.0;    // Never turn faster than this.
+        public const double TurnBrakingMargin = 0.75;       // Plan the braking with this fraction of the craft's angular acceleration.
+        public const double TurnRateGain = 1.5;             // Close to the target the turning rate is this x the remaining angle (per second).
+        public const double TurnResponseSeconds = 0.25;     // The rate error is corrected over about this long.
 
         // ---- Dropout zones ----
         public const double DropoutFraction = 0.00625;      // Fraction of each body's SOI.
@@ -105,8 +105,8 @@ namespace CrunchDrives
         public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. Manual: the player's own crunch (see below). TwoLeg and OneLeg need a target.
         public static bool ManualSetSpeed = false;                  // Manual mode: the player sets the average speed (ManualSpeedC). The spool ends by itself at exactly that speed. If not, the speed is whatever the spool reaches.
         public static bool ManualSetTime = true;                    // Manual mode: the player sets the duration (CrunchSeconds). If not, the crunch has no end: the speed ramps up once and stays there until the player collapses the field or the craft drops out.
-        public static double ManualSpeedC = 1.0;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
-        public static double CrunchSeconds = 45.0;                  // Manual mode: the duration when ManualSetTime is on.
+        public static double ManualSpeedC = 2.5;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
+        public static double CrunchSeconds = 60.0;                  // Manual mode: the duration when ManualSetTime is on.
         public static bool IgnoreDropout = false;                   // Manual mode only: the crunch ignores every dropout sphere, the one it starts in and the target's too, so only the player (or the time set) ends it, and the player risks collisions. A spool still cannot start inside a sphere (unless Loosen Start Conditions is on).
         public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
         public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.

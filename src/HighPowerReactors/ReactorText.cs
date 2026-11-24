@@ -15,7 +15,7 @@ namespace HighPowerReactors
         public static string HeadingPlain(string color, string text) { return "<color=" + color + ">" + text + "</color>"; }   // Coloured, not bold.
         public static string Heading(string color, string text) { return "<b><color=" + color + ">" + text + "</color></b>"; }
 
-        // Lines start with "\n" so they can be strung together. Numbers are plain, with no thousands separators.
+        // Lines start with "\n" so they can be strung together. Numbers have no thousands separators; large ones switch to a bigger unit (see ReactorMath).
         //
         // SystemHeat edits the module's info: it inserts its own Thermal Parameters block (Heat Generated, Outlet Temperature, Max. Temperature)
         // in front of the FIRST blank line ("\n\n") it finds in the text. So the blank line after the description is written "\n \n" (with a
@@ -23,21 +23,21 @@ namespace HighPowerReactors
         public const string BlankLine = "\n \n";
         public static string InfoCharge(double ec, double seconds)
         {
-            return string.Format(BlankLine + "<b>Charge Required: </b>{0:F0} EC\n<b>Minimum Time to Charge: </b>{1:F0} s", ec, seconds);
+            return string.Format(BlankLine + "<b>Charge Required: </b>{0}\n<b>Minimum Time to Charge: </b>{1} s", ReactorMath.FormatScaled(ec, "EC", 1e6), ReactorMath.FormatNumber(seconds));
         }
-        public static string InfoWasteHeat(double kilowatts) { return string.Format("\n- <b>Waste Heat: </b>{0:F0} kW", kilowatts); }
-        public static string InfoOutletTemperature(double kelvin) { return string.Format("\n- <b>Outlet Temperature: </b>{0:F0} K", kelvin); }
-        public static string InfoPower(double kilowatts) { return string.Format("\n- <b>Power Generated: </b>{0:F0} kW", kilowatts); }
+        public static string InfoWasteHeat(double kilowatts) { return "\n- <b>Waste Heat: </b>" + ReactorMath.FormatScaled(kilowatts * 1000.0, "W"); }
+        public static string InfoOutletTemperature(double kelvin) { return "\n- <b>Outlet Temperature: </b>" + ReactorMath.FormatNumber(kelvin) + " K"; }
+        public static string InfoPower(double kilowatts) { return "\n- <b>Power Generated: </b>" + ReactorMath.FormatScaled(kilowatts * 1000.0, "W"); }
         public const string InfoInputs = "\n- <b>Inputs:</b>";
         public const string InfoOutputs = "\n- <b>Outputs:</b>";
         public static string InfoResource(string name, double perSecond) { return string.Format("\n-- {0}: {1} u/s", name, perSecond.ToString("0.##########")); }
 
         // Debug Logs
-        public const string LogBootstrapPassed = "[HighPowerReactors] Kerbal Space Program launched successfully with a HighPowerReactors build.";
-        public const string LogNoGlowMaterial = "[HighPowerReactors] No emissives found on part.";
+        public const string LogBootstrapPassed = "[LSA][HighPowerReactors] Bootstrap passed";
+        public const string LogNoGlowMaterial = "[LSA][HighPowerReactors] No emissives found on part";
         public static string LogGlowMaterials(int materials, int renderers)
         {
-            return string.Format("[HighPowerReactors] {0} material(s) of {1} included renderer(s) found on part.", materials, renderers);
+            return string.Format("[LSA][HighPowerReactors] {0} material(s) of {1} included renderer(s) found on part", materials, renderers);
         }
     }
 }

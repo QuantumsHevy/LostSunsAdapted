@@ -17,5 +17,6 @@
   <ItemGroup>
     <Compile Include="..\..\src\CrunchDrives\CrunchMath.cs" />
     <Compile Include="..\..\src\CrunchDrives\Vec3d.cs" />
+    <Compile Include="..\..\src\HighPowerReactors\ReactorMath.cs" />
   </ItemGroup>
 </Project>
