@@ -1,46 +1,19 @@
 using System.Collections.Generic;
 using CrunchDrives.Core;
 using UnityEngine;
-
 namespace CrunchDrives
 {
-    // The blinding white tube around the craft while a crunch field is up: a tube along the ring's axis, widest at the ring, with
-    // soft layers around it that blur its edge. CrunchTuning.TubeCurve sets how much it closes in toward its ends (0 = straight,
-    // 1 = an ellipse closing to a point), and CrunchTuning.TubeFadeStart where it starts to fade out along its length (0 = at the
-    // ring, 1 = at the craft's outermost points with no padding past them, 2 = never, so it cuts off). Both ends are the same.
-    // It is at its full length the moment the field forms, and its
-    // brightness follows the craft's live speed (CrunchTuning.TubeMinBrightness at rest, full from 1c up). When the field is down it fades out (see below). The flash, the tube and its light are one effect: all on, or all off. While the field is
-    // up the tube's length pulses with the flicker (it only ever stretches past its measured length, never shrinks below it,
-    // so the craft stays covered), and however small the craft, each end of the tube is at least one ring diameter long.
-    //
-    // When the field goes down, the tube does not shrink: it only fades, from the brightness it had (which the speed has already taken
-    // to near nothing at the end of a crunch). At that moment a second tube (the burst) appears at once, at its full length and
-    // brightness, and fades back to nothing over CrunchTuning.TubeFadeOutSeconds while it shrinks back to the ring. It has the same curve and size as the tube during the crunch,
-    // and its own fade start (CrunchTuning.TubeBurstFadeStart). It is not shown when the field forms: the flash alone marks that,
-    // and the tube then brightens with the speed.
-    //
-    // A brief, overwhelming flash belongs to it: a camera-facing glow (a flat quad that always turns toward the camera) at
-    // the ring, every time the craft enters or leaves the crunch field.
-    //
-    // It is parented to the drive part, so it follows the part's position, rotation and the floating origin for free.
-    // Its size is measured from the craft's meshes at the start of each spool. Everything is built in code.
-    //
-    // Assumes the ring's axis is the part's local Y axis and the part's origin is the centre of the ring along it.
-    // The tube's profile is an ellipse (radius = R x sqrt(1 - u^2), u = 0 at the ring and 1 at the tip).
     public class CrunchTube
     {
         const int CornerCount = 8;
-        const int MaxMeshVertices = 60000;   // A mesh holds 65535 vertices with the default 16-bit indices; the halo is thinned to fit.
-        const float EndMargin = 1f;          // Each end of the tube reaches at least this far (m) past the craft's outermost point.
-
-        // One corner of one mesh's bounding box, measured from the ring: how far along the axis, and how far from it.
+        const int MaxMeshVertices = 60000;
+        const float EndMargin = 1f;
         struct ScanCorner
         {
             public float along;
             public float radial;
             public int part;
         }
-
         GameObject root;
         MeshFilter forwardFilter;
         MeshFilter backwardFilter;
@@ -61,35 +34,30 @@ namespace CrunchDrives
         Glow flashGlow;
         string colorProperty;
         float colorBase = 1f;
-
-        // The craft, as last scanned.
         readonly List<ScanCorner> scan = new List<ScanCorner>();
         readonly List<string> scanParts = new List<string>();
         float scanRingRadius, scanMaxAlong, scanMinAlong, scanBoundRadius;
         int scanRenderers;
         bool scanned;
-
-        float radius = 1f;       // Tube radius, meters.
-        float forward = 2f;      // Tube length on the +Y side of the ring, meters.
-        float backward = 2f;     // Tube length on the -Y side of the ring, meters.
-        float flashRadius = 1f;  // Radius of a sphere around the ring's centre that holds the whole craft, meters.
-        float level;             // 0..1: how far the tube has faded in and grown out.
-        float clock;             // Seconds, for the flicker.
-        float flashClock = -1f;  // Seconds since the flash began; negative when no flash is running.
-        float flashAge;          // 0..1: how far through its time the running flash is.
-        float[] forwardAlpha, backwardAlpha;      // The meshes' own opacities, kept so they can be faded by hand when the shader has no colour property.
+        float radius = 1f;
+        float forward = 2f;
+        float backward = 2f;
+        float flashRadius = 1f;
+        float level;
+        float clock;
+        float flashClock = -1f;
+        float flashAge;
+        float[] forwardAlpha, backwardAlpha;
         Color[] forwardWork, backwardWork;
         float[] burstForwardAlpha, burstBackwardAlpha;
         Color[] burstForwardWork, burstBackwardWork;
-        float burstLevel;        // 1..0: how much of the burst tube is left; it falls to 0 over TubeFadeOutSeconds after the field collapses.
-        bool burstShown;         // The burst tube is switched on.
-        bool shown;              // The tube is switched on.
-        bool flashShown;         // The flash is switched on.
-        bool wasOn;              // The crunch field was up at the last Tick.
-        bool built;              // The meshes have been built from a measurement.
-
-        public bool IsBuilt { get { return built; } }   // A measurement has been made, so the tube can be shown.
-
+        float burstLevel;
+        bool burstShown;
+        bool shown;
+        bool flashShown;
+        bool wasOn;
+        bool built;
+        public bool IsBuilt { get { return built; } }
         static Shader shader;
         static Texture2D glowTexture;
         static readonly Vector3[] corners = new Vector3[CornerCount];
@@ -100,40 +68,29 @@ namespace CrunchDrives
             "KSP/Particles/Additive",
             "Legacy Shaders/Particles/Additive"
         };
-
-        // ---- Setup ----
-
         public void Attach(Part part)
         {
             Dispose();
             if (part == null) return;
-
             if (shader == null)
             {
                 for (int i = 0; i < ShaderNames.Length && shader == null; i++) shader = Shader.Find(ShaderNames[i]);
                 if (shader == null) { Debug.Log(CrunchText.LogNoTubeShader); return; }
                 if (shader.name.Contains("Additive")) Debug.Log(CrunchText.LogTubeAdditive);
             }
-
             material = new Material(shader);
             material.mainTexture = Texture2D.whiteTexture;
-            if (material.HasProperty("_TintColor")) { colorProperty = "_TintColor"; colorBase = 0.5f; }   // These shaders double the tint.
+            if (material.HasProperty("_TintColor")) { colorProperty = "_TintColor"; colorBase = 0.5f; }
             else if (material.HasProperty("_Color")) { colorProperty = "_Color"; colorBase = 1f; }
             else colorProperty = null;
-
-            // The burst tube has its own material, so its brightness is independent of the tube's.
             burstMaterial = new Material(shader);
             burstMaterial.mainTexture = Texture2D.whiteTexture;
-
-            // The flash fades through its vertex colours, so its material's tint stays at full.
             glowMaterial = new Material(shader);
             glowMaterial.mainTexture = GlowTexture();
             if (colorProperty != null) glowMaterial.SetColor(colorProperty, new Color(colorBase, colorBase, colorBase, colorBase));
-
             root = new GameObject("CrunchDriveTube");
             root.layer = part.gameObject.layer;
             root.transform.SetParent(part.transform, false);
-
             forwardRenderer = MakeHalf("Forward", out forwardFilter, material);
             backwardRenderer = MakeHalf("Backward", out backwardFilter, material);
             burstForwardRenderer = MakeHalf("BurstForward", out burstForwardFilter, burstMaterial);
@@ -142,15 +99,12 @@ namespace CrunchDrives
             burstBackwardTransform = burstBackwardFilter.transform;
             forwardTransform = forwardFilter.transform;
             backwardTransform = backwardFilter.transform;
-
             flashGlow = new Glow("Flash", root.transform, glowMaterial, root.layer);
-
             lamp = root.AddComponent<Light>();
             lamp.type = LightType.Point;
             lamp.color = Color.white;
             lamp.shadows = LightShadows.None;
-
-            shown = true;        // Forces the first SetShown to actually switch everything off.
+            shown = true;
             flashShown = true;
             burstShown = true;
             built = false;
@@ -161,20 +115,18 @@ namespace CrunchDrives
             burstLevel = 0f;
             SetShown(false, false, false);
         }
-
         Renderer MakeHalf(string name, out MeshFilter filter, Material sharedMaterial)
         {
             GameObject go = new GameObject(name);
             go.layer = root.layer;
             go.transform.SetParent(root.transform, false);
-            filter = go.AddComponent<MeshFilter>();   // No collider is ever added: the tube must not touch anything.
+            filter = go.AddComponent<MeshFilter>();
             MeshRenderer r = go.AddComponent<MeshRenderer>();
             r.sharedMaterial = sharedMaterial;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
             return r;
         }
-
         public void Dispose()
         {
             DestroyMesh(forwardFilter);
@@ -212,31 +164,21 @@ namespace CrunchDrives
             flashClock = -1f;
             built = false;
         }
-
         static void DestroyMesh(MeshFilter f)
         {
             if (f != null && f.sharedMesh != null) Object.Destroy(f.sharedMesh);
         }
-
-        // ---- Measuring ----
-
-        // Works out the tube's size from the meshes on the craft and builds its meshes. The radius comes from the drive
-        // part's own meshes (its widest point, which is the ring), the lengths from every part's meshes along the ring's axis.
         public void Measure(Part drive, Vessel vessel)
         {
             if (root == null || drive == null || vessel == null) return;
             Scan(drive, vessel);
             Rebuild();
         }
-
-        // Looks at every mesh on the craft once and keeps where the corners of their bounding boxes are, measured from the ring.
-        // Rebuild works from that.
         void Scan(Part drive, Vessel vessel)
         {
             Transform pt = drive.transform;
             Vector3 center = pt.position;
             Vector3 axis = pt.up;
-
             scan.Clear();
             scanParts.Clear();
             scanRingRadius = 0f;
@@ -244,8 +186,6 @@ namespace CrunchDrives
             scanMinAlong = 0f;
             scanBoundRadius = 0f;
             scanRenderers = 0;
-
-            // The ring: measured in the part's own space, where the ring's axis is Y.
             foreach (Renderer r in MeshRenderers(drive))
             {
                 if (!Usable(r)) continue;
@@ -256,8 +196,6 @@ namespace CrunchDrives
                     scanRingRadius = Mathf.Max(scanRingRadius, Mathf.Abs(local.x), Mathf.Abs(local.z));
                 }
             }
-
-            // The craft: every part, projected onto the ring's axis.
             for (int p = 0; p < vessel.parts.Count; p++)
             {
                 scanParts.Add(vessel.parts[p].name);
@@ -280,21 +218,16 @@ namespace CrunchDrives
             }
             scanned = true;
         }
-
-        // Builds the tube's meshes (and the flash's size) from the last scan.
         void Rebuild()
         {
             if (root == null || !scanned) return;
-
-            // The curve of the tube can pull in toward its tips, so a wide part far from the ring needs a longer tube to stay inside it.
             float curve = (float)CrunchTuning.TubeCurve;
             float ringR = Mathf.Max(0.5f, scanRingRadius * (float)CrunchTuning.TubeRadiusFactor);
             float fitMax = (float)CrunchTuning.TubeFitMaxFactor;
-
-            float needForward = 0f;    // Length the tube needs for the craft to fit inside its curve, each side.
+            float needForward = 0f;
             float needBackward = 0f;
-            int poking = 0;            // Corners the length limit leaves outside the tube.
-            string forwardPart = "", backwardPart = "";   // The parts that set each end's length, for the log.
+            int poking = 0;
+            string forwardPart = "", backwardPart = "";
             float forwardAlong = 0f, forwardRadial = 0f, backwardAlong = 0f, backwardRadial = 0f;
             for (int i = 0; i < scan.Count; i++)
             {
@@ -312,25 +245,17 @@ namespace CrunchDrives
                 }
                 if (capped) poking++;
             }
-
             float maxAlong = scanMaxAlong;
             float minAlong = scanMinAlong;
             float craftLength = maxAlong - minAlong;
-
             radius = ringR;
-            float minHalf = Mathf.Max(2f, scanRingRadius * 2f);   // Each end is at least a ring diameter long, however small the craft.
+            float minHalf = Mathf.Max(2f, scanRingRadius * 2f);
             forward = Mathf.Max(minHalf, maxAlong + EndMargin, needForward);
             backward = Mathf.Max(minHalf, -minAlong + EndMargin, needBackward);
-
-            // Both halves get the larger of the two lengths, so the tube looks the same whichever way the craft faces.
             float length = Mathf.Max(forward, backward);
             forward = length;
             backward = length;
-
-            // The tube is fully opaque up to the fade start (CrunchTuning.TubeFadeStart) and fades from there. Both ends fade from the same
-            // distance (measured from the farther of the two craft ends), so the tube looks the same whichever way the craft faces.
             float solid = (float)CrunchMath.TubeSolidDistance(Mathf.Max(maxAlong, -minAlong), length, CrunchTuning.TubeFadeStart);
-
             int segments = CrunchTuning.TubeSegments;
             DestroyMesh(forwardFilter);
             DestroyMesh(backwardFilter);
@@ -339,8 +264,6 @@ namespace CrunchDrives
             backwardFilter.sharedMesh = BuildTube(radius, backward, solid, segments, -1f, curveNow);
             CacheColors(forwardFilter.sharedMesh, out forwardAlpha, out forwardWork);
             CacheColors(backwardFilter.sharedMesh, out backwardAlpha, out backwardWork);
-
-            // The burst tube: the same curve and length as the tube, with its own fade start.
             float burstSolid = (float)CrunchMath.TubeSolidDistance(Mathf.Max(maxAlong, -minAlong), length, CrunchTuning.TubeBurstFadeStart);
             DestroyMesh(burstForwardFilter);
             DestroyMesh(burstBackwardFilter);
@@ -348,30 +271,24 @@ namespace CrunchDrives
             burstBackwardFilter.sharedMesh = BuildTube(radius, length, burstSolid, segments, -1f, curveNow);
             CacheColors(burstForwardFilter.sharedMesh, out burstForwardAlpha, out burstForwardWork);
             CacheColors(burstBackwardFilter.sharedMesh, out burstBackwardAlpha, out burstBackwardWork);
-
             flashRadius = Mathf.Max(scanBoundRadius, radius);
             built = true;
-
             lamp.range = Mathf.Max(radius, craftLength) * (float)CrunchTuning.TubeLightRangeFactor;
-
             Debug.Log(CrunchText.LogTubeMeasured(radius, forward, backward, craftLength));
             if (poking > 0) Debug.Log(CrunchText.LogTubePoking(poking));
             Debug.Log(CrunchText.LogTubeSources(scanRenderers, scanParts.Count, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial));
         }
-
         static void CacheColors(Mesh mesh, out float[] alphas, out Color[] work)
         {
             work = mesh.colors;
             alphas = new float[work.Length];
             for (int i = 0; i < work.Length; i++) alphas[i] = work[i].a;
         }
-
         static void FadeColors(Mesh mesh, float[] alphas, Color[] work, float fade)
         {
             for (int i = 0; i < work.Length; i++) work[i].a = alphas[i] * fade;
             mesh.colors = work;
         }
-
         static IEnumerable<Renderer> MeshRenderers(Part part)
         {
             List<MeshRenderer> meshes = part.FindModelComponents<MeshRenderer>();
@@ -379,15 +296,10 @@ namespace CrunchDrives
             List<SkinnedMeshRenderer> skinned = part.FindModelComponents<SkinnedMeshRenderer>();
             for (int i = 0; i < skinned.Count; i++) yield return skinned[i];
         }
-
-        // Hidden meshes (a ring variant that is switched off, say) must not count.
         bool Usable(Renderer r)
         {
             return r != null && r.enabled && r.gameObject.activeInHierarchy && !r.transform.IsChildOf(root.transform);
         }
-
-        // The corners of the mesh's own bounding box in world space. Tighter than the renderer's world-aligned box,
-        // which would overstate a rotated mesh.
         static int ObbCorners(Renderer r)
         {
             Bounds b;
@@ -402,7 +314,6 @@ namespace CrunchDrives
                 if (mf == null || mf.sharedMesh == null) return 0;
                 b = mf.sharedMesh.bounds;
             }
-
             Transform t = skinned != null && skinned.rootBone != null ? skinned.rootBone : r.transform;
             Vector3 c = b.center, e = b.extents;
             int k = 0;
@@ -412,38 +323,25 @@ namespace CrunchDrives
                         corners[k++] = t.TransformPoint(c + new Vector3(e.x * x, e.y * y, e.z * z));
             return CornerCount;
         }
-
-        // ---- Per-frame ----
-
-        // on is true for as long as the crunch field is up, and only then. Call every frame (LateUpdate suits it best: the flash
-        // turns to face the camera, which has finished moving by then); it allocates nothing.
-        // The tube is at its full length while the field is up, and its brightness is 'intensity' (0..1, from the craft's live speed:
-        // at its minimum at rest, full at 1c and above). When the field goes down it fades out from the brightness
-        // it had (it keeps its length), so pass the last intensity while on is false. Each time on changes, the flash goes off, whatever the brightness; when it
-        // goes false, the burst tube also appears (see the top of this class).
         public void Tick(float dt, bool on, float intensity)
         {
             if (root == null) return;
-            if (!built) on = false;   // Nothing to show until a spool has measured the craft.
+            if (!built) on = false;
             intensity = Mathf.Clamp01(intensity);
-
-            if (on != wasOn)          // The craft has just entered or left the crunch field.
+            if (on != wasOn)
             {
                 wasOn = on;
                 flashClock = 0f;
-                if (!on) burstLevel = 1f;   // Leaving it: the burst tube appears at full brightness. Entering it: the flash alone.
+                if (!on) burstLevel = 1f;
             }
-
-            // The burst tube keeps its full length and fades back to nothing; a new field ends it at once.
             if (on) burstLevel = 0f;
             else
             {
                 float burstSeconds = (float)CrunchTuning.TubeFadeOutSeconds;
                 burstLevel = Mathf.MoveTowards(burstLevel, 0f, burstSeconds > 0f ? dt / burstSeconds : 1f);
             }
-            float burstFade = burstLevel * burstLevel;   // Squared, like the tube's opacity, so it leaves a soft tail.
+            float burstFade = burstLevel * burstLevel;
             bool burstVisible = burstFade > 0.0005f;
-
             if (on)
             {
                 level = 1f;
@@ -453,34 +351,26 @@ namespace CrunchDrives
                 float fadeSeconds = (float)CrunchTuning.TubeFadeOutSeconds;
                 level = Mathf.MoveTowards(level, 0f, fadeSeconds > 0f ? dt / fadeSeconds : 1f);
             }
-
-            float fade = level * level * intensity;   // Squared, so the fade has a soft tail.
+            float fade = level * level * intensity;
             bool visible = fade > 0.0005f;
             float flash = TickFlash(dt);
             SetShown(visible, flash > 0f, burstVisible);
             if (!visible && !burstVisible && flash <= 0f) return;
-
             Camera cam = ViewCamera();
             Quaternion faceCamera = cam != null ? cam.transform.rotation : root.transform.rotation;
-
             float shade = 0f;
             if (visible)
             {
-                // Flicker: the whole tube and its light waver while the field is up. It dies away with the brightness.
                 clock += dt;
                 float hz = (float)CrunchTuning.TubeFlickerHz;
                 float amount = (float)CrunchTuning.TubeFlickerAmount;
                 float noise = Mathf.PerlinNoise(clock * hz, 0.37f) * 0.6f
                             + Mathf.PerlinNoise(clock * hz * 2.3f, 7.1f) * 0.4f;
                 float flicker = 1f - amount * (1f - noise);
-
-                // Squash and stretch: the tube's length pulses with the flicker, longest when brightest. It only ever stretches past its
-                // measured length, never shrinks below it, so the craft stays covered. It does not shrink when the field goes down: it only fades.
                 float lengthScale = StretchFactor(noise, (float)CrunchTuning.TubeStretchAmount);
                 Vector3 scale = new Vector3(1f, lengthScale, 1f);
                 forwardTransform.localScale = scale;
                 backwardTransform.localScale = scale;
-
                 shade = fade * flicker;
                 if (colorProperty != null)
                 {
@@ -488,14 +378,12 @@ namespace CrunchDrives
                 }
                 else
                 {
-                    FadeColors(forwardFilter.sharedMesh, forwardAlpha, forwardWork, shade);   // The shader has no colour to fade, so fade the vertices.
+                    FadeColors(forwardFilter.sharedMesh, forwardAlpha, forwardWork, shade);
                     FadeColors(backwardFilter.sharedMesh, backwardAlpha, backwardWork, shade);
                 }
             }
-
             if (burstVisible)
             {
-                // The burst tube shrinks back to the ring as it fades, so its length reaches zero as its brightness does.
                 Vector3 burstScale = new Vector3(1f, Mathf.Max(0.0001f, Mathf.SmoothStep(0f, 1f, burstLevel)), 1f);
                 burstForwardTransform.localScale = burstScale;
                 burstBackwardTransform.localScale = burstScale;
@@ -509,13 +397,9 @@ namespace CrunchDrives
                     FadeColors(burstBackwardFilter.sharedMesh, burstBackwardAlpha, burstBackwardWork, burstFade);
                 }
             }
-
             PlaceFlash(flash, cam, faceCamera);
-
             lamp.intensity = (float)CrunchTuning.TubeLightIntensity * Mathf.Max(shade, burstFade) + (float)CrunchTuning.FlashLightIntensity * flash;
         }
-
-        // Advances the flash and returns its brightness, 0..1 (0 when none is running).
         float TickFlash(float dt)
         {
             if (flashClock < 0f) return 0f;
@@ -526,13 +410,9 @@ namespace CrunchDrives
             flashAge = flashClock / (rise + fall);
             return FlashEnvelope(flashClock, rise, fall);
         }
-
-        // The flash is a disc that faces the camera, centred on the ring but pushed out toward the camera until it is in front
-        // of the whole craft, so no part of the craft cuts into it.
         void PlaceFlash(float flash, Camera cam, Quaternion faceCamera)
         {
             if (flash <= 0f) return;
-
             Vector3 position = Vector3.zero;
             if (cam != null)
             {
@@ -540,15 +420,13 @@ namespace CrunchDrives
                 float distance = toCamera.magnitude;
                 if (distance > 0.001f)
                 {
-                    float standoff = Mathf.Min(flashRadius * 1.05f, distance * 0.5f);   // Never farther than half way to the camera.
+                    float standoff = Mathf.Min(flashRadius * 1.05f, distance * 0.5f);
                     position = toCamera * (standoff / distance);
                 }
             }
-
             float size = 2f * flashRadius * (float)CrunchTuning.FlashSizeFactor * (1f + (float)CrunchTuning.FlashGrowth * flashAge);
             flashGlow.Place(position, faceCamera, size, Mathf.Clamp01(flash * (float)CrunchTuning.FlashStrength));
         }
-
         void SetShown(bool tubeOn, bool flashOn, bool burstOn)
         {
             if (root != null && shown == tubeOn && flashShown == flashOn && burstShown == burstOn) return;
@@ -562,18 +440,11 @@ namespace CrunchDrives
             if (flashGlow != null) flashGlow.Visible = flashOn;
             if (lamp != null) lamp.enabled = tubeOn || flashOn || burstOn;
         }
-
-        // The flight camera, which the flash faces. UNVERIFIED: FlightCamera.fetch.mainCamera is from memory; Camera.main is the fallback.
         static Camera ViewCamera()
         {
             Camera c = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             return c != null ? c : Camera.main;
         }
-
-        // ---- Glow quads ----
-
-        // A flat square, textured with the soft round glow, that is turned to face the camera every frame. Its opacity is carried in
-        // its vertex colours. The quad is drawn from both sides.
         sealed class Glow
         {
             readonly GameObject go;
@@ -582,14 +453,13 @@ namespace CrunchDrives
             readonly Mesh mesh;
             readonly Color[] colors = new Color[4];
             float lastAlpha = -1f;
-
             public Glow(string name, Transform parent, Material material, int layer)
             {
                 go = new GameObject(name);
                 go.layer = layer;
                 tf = go.transform;
                 tf.SetParent(parent, false);
-                MeshFilter filter = go.AddComponent<MeshFilter>();   // No collider is ever added.
+                MeshFilter filter = go.AddComponent<MeshFilter>();
                 renderer = go.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = material;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -598,10 +468,7 @@ namespace CrunchDrives
                 filter.sharedMesh = mesh;
                 renderer.enabled = false;
             }
-
             public bool Visible { set { renderer.enabled = value; } }
-
-            // localPosition is in the tube's own space; size is the side of the square (the glow's diameter).
             public void Place(Vector3 localPosition, Quaternion worldRotation, float size, float alpha)
             {
                 tf.localPosition = localPosition;
@@ -613,13 +480,11 @@ namespace CrunchDrives
                 colors[0] = c; colors[1] = c; colors[2] = c; colors[3] = c;
                 mesh.colors = colors;
             }
-
             public void Dispose()
             {
                 if (mesh != null) Object.Destroy(mesh);
                 if (go != null) Object.Destroy(go);
             }
-
             static Mesh BuildQuad()
             {
                 Mesh m = new Mesh();
@@ -632,17 +497,14 @@ namespace CrunchDrives
                 m.uv = new Vector2[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f) };
                 Color clear = new Color(1f, 1f, 1f, 0f);
                 m.colors = new Color[] { clear, clear, clear, clear };
-                m.triangles = new int[] { 0, 2, 1, 1, 2, 3, 0, 1, 2, 1, 3, 2 };   // Both sides.
+                m.triangles = new int[] { 0, 2, 1, 1, 2, 3, 0, 1, 2, 1, 3, 2 };
                 m.RecalculateBounds();
                 return m;
             }
         }
-
-        // The soft round glow texture, for the flash: white, with the opacity in the alpha channel. Built once.
         static Texture2D GlowTexture()
         {
             if (glowTexture != null) return glowTexture;
-
             const int size = 64;
             Texture2D t = new Texture2D(size, size, TextureFormat.RGBA32, false);
             t.wrapMode = TextureWrapMode.Clamp;
@@ -662,19 +524,12 @@ namespace CrunchDrives
             glowTexture = t;
             return t;
         }
-
-        // ---- Mesh ----
-
-        // Opacity of the glow texture at radius r from its centre (0 = centre, 1 = edge): a small bright core, then a smooth fade to nothing at the edge.
         public static float GlowAlpha(float r)
         {
             if (r >= 1f) return 0f;
             float s = Mathf.Clamp01((r - 0.15f) / 0.85f);
             return 1f - Mathf.SmoothStep(0f, 1f, s);
         }
-
-        // Brightness of the flash, 0..1, t seconds after it begins: it rises over 'rise' seconds, then dies away over 'fall' seconds
-        // (fast at first, with a long soft tail).
         public static float FlashEnvelope(float t, float rise, float fall)
         {
             if (t <= 0f) return 0f;
@@ -682,18 +537,10 @@ namespace CrunchDrives
             float s = Mathf.Clamp01((t - rise) / Mathf.Max(0.0001f, fall));
             return (1f - s) * (1f - s);
         }
-
-        // How much longer than its measured length the tube is, given the flicker's noise (0..1): 1 at the lowest, 1 + amount at the
-        // highest. Never below 1, so the tube never shrinks inside the craft's bounds.
         public static float StretchFactor(float noise, float amount)
         {
             return 1f + Mathf.Max(0f, amount) * Mathf.Clamp01(noise);
         }
-
-        // Opacity of soft layer s (1 = innermost, up to 'shells' = outermost) of the halo around the tube. Seen from the side, the
-        // glow just outside the tube's edge has opacity edgeOpacity and falls off like a bell curve (width 'falloff', as a share of the halo's
-        // width) to nothing at the outermost layer: each layer adds the difference between the curve at its inner and outer edge. A
-        // layer is crossed twice by a line of sight (front and back wall), so its own opacity is lower than the opacity it adds.
         public static float HaloShellAlpha(int s, int shells, float edgeOpacity, float falloff)
         {
             if (shells < 1 || s < 1 || s > shells) return 0f;
@@ -704,15 +551,10 @@ namespace CrunchDrives
             float added = Mathf.Clamp01(edgeOpacity) * Mathf.Max(0f, inner - outer);
             return 1f - Mathf.Sqrt(1f - Mathf.Min(added, 0.999f));
         }
-
         static float Bell(float d, float k)
         {
             return Mathf.Exp(-(d * d) / (k * k));
         }
-
-        // One half of the tube, from the ring (y = 0) out to y = direction * length, drawn from both sides. The opacity is
-        // carried in the vertex colours, so it fades out from the fade start toward the tip. Wider, fainter copies of the tube (the halo)
-        // blur its outline.
         static Mesh BuildTube(float radius, float length, float solid, int segments, float direction, float curve)
         {
             int count = CrunchTuning.TubeRings;
@@ -720,30 +562,26 @@ namespace CrunchDrives
             for (int i = 0; i <= count; i++)
             {
                 float t = (float)i / count;
-                us.Add(Mathf.Lerp(t, 1f - (1f - t) * (1f - t), Mathf.Clamp01(curve)));   // The more the tube curves, the closer the rings are packed toward the tip, where the curve is steepest.
+                us.Add(Mathf.Lerp(t, 1f - (1f - t) * (1f - t), Mathf.Clamp01(curve)));
             }
             float solidU = Mathf.Clamp01(solid / length);
-            us.Add(solidU);                          // A ring exactly where the opaque part ends.
+            us.Add(solidU);
             us.Sort();
             for (int i = us.Count - 1; i > 0; i--) if (us[i] - us[i - 1] < 0.0005f) us.RemoveAt(i);
-
             int ringVerts = segments + 1;
-            int shells = Mathf.Min(CrunchTuning.TubeHaloShells, Mathf.Max(0, MaxMeshVertices / (us.Count * ringVerts) - 1));   // Keep the mesh within its vertex limit.
+            int shells = Mathf.Min(CrunchTuning.TubeHaloShells, Mathf.Max(0, MaxMeshVertices / (us.Count * ringVerts) - 1));
             float spread = (float)CrunchTuning.TubeHaloSpread;
             float edgeOpacity = (float)CrunchTuning.TubeHaloStrength;
             float falloff = (float)CrunchTuning.TubeHaloFalloff;
-
             List<Vector3> verts = new List<Vector3>();
             List<Color> colors = new List<Color>();
             List<Vector2> uvs = new List<Vector2>();
             List<int> tris = new List<int>();
-
             for (int s = 0; s <= shells; s++)
             {
                 float widen = 1f + spread * s / Mathf.Max(1, shells);
                 float fade = s == 0 ? 1f : HaloShellAlpha(s, shells, edgeOpacity, falloff);
                 int first = verts.Count;
-
                 for (int r = 0; r < us.Count; r++)
                 {
                     float y = length * us[r];
@@ -757,7 +595,6 @@ namespace CrunchDrives
                         uvs.Add(new Vector2((float)i / segments, 0.5f));
                     }
                 }
-
                 for (int r = 0; r < us.Count - 1; r++)
                 {
                     for (int i = 0; i < segments; i++)
@@ -765,12 +602,11 @@ namespace CrunchDrives
                         int a = first + r * ringVerts + i, b = a + 1, c = a + ringVerts, d = c + 1;
                         tris.Add(a); tris.Add(c); tris.Add(b);
                         tris.Add(b); tris.Add(c); tris.Add(d);
-                        tris.Add(a); tris.Add(b); tris.Add(c);   // The same faces again, facing the other way.
+                        tris.Add(a); tris.Add(b); tris.Add(c);
                         tris.Add(b); tris.Add(d); tris.Add(c);
                     }
                 }
             }
-
             Mesh mesh = new Mesh();
             mesh.name = "CrunchDriveTube";
             mesh.vertices = verts.ToArray();

@@ -2,7 +2,6 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>LostSunsHighPowerReactors</AssemblyName>
-    <!-- Overrides the CrunchDrives folder that Directory.Build.props sets, so this plugin lands in its own mod folder. -->
     <RepoGameData>$(MSBuildThisFileDirectory)..\..\GameData\LostSunsAdapted\HighPowerReactors\</RepoGameData>
   </PropertyGroup>
   <ItemGroup>

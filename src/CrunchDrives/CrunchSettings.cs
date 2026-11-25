@@ -1,28 +1,20 @@
 using System.Globalization;
-
 namespace CrunchDrives
 {
-    // The global settings, read once from GameData/LostSunsAdapted/CrunchDrives/Settings.cfg (a LSA_CRUNCHDRIVES_SETTINGS node). A key that is
-    // missing or unreadable keeps its CrunchTuning default. They are the same for every craft and cannot be changed in the game.
     public static class CrunchSettings
     {
         const string NodeName = "LSA_CRUNCHDRIVES_SETTINGS";
-
         public static bool AllowWarp = CrunchTuning.DefaultAllowWarp;
         public static bool AllowNearbyCraft = CrunchTuning.DefaultAllowNearbyCraft;
         public static bool UseTurnController = CrunchTuning.DefaultUseTurnController;
         public static double DropoutMultiplier = CrunchTuning.DefaultDropoutMultiplier;
         public static bool LooseStart = CrunchTuning.DefaultLooseStart;
         public static bool IgnoreDropout = CrunchTuning.DefaultIgnoreDropout;
-
         static bool loaded;
-
         public static void EnsureLoaded()
         {
             if (!loaded) Load();
         }
-
-        // UNVERIFIED KSP API: GameDatabase.Instance.GetConfigNodes(name) returns the top-level nodes of that name from every cfg (after ModuleManager).
         public static void Load()
         {
             loaded = true;
@@ -32,29 +24,24 @@ namespace CrunchDrives
             DropoutMultiplier = CrunchTuning.DefaultDropoutMultiplier;
             LooseStart = CrunchTuning.DefaultLooseStart;
             IgnoreDropout = CrunchTuning.DefaultIgnoreDropout;
-
             ConfigNode[] nodes = GameDatabase.Instance != null ? GameDatabase.Instance.GetConfigNodes(NodeName) : null;
             if (nodes == null || nodes.Length == 0)
             {
                 UnityEngine.Debug.Log(CrunchText.LogSettingsMissing);
                 return;
             }
-
-            ConfigNode node = nodes[nodes.Length - 1];   // If another cfg adds a second node, the last one wins.
+            ConfigNode node = nodes[nodes.Length - 1];
             ReadBool(node, "allowTimeWarp", ref AllowWarp);
             ReadBool(node, "allowNearbyCraft", ref AllowNearbyCraft);
             ReadBool(node, "useTurnController", ref UseTurnController);
             ReadBool(node, "looseStartConditions", ref LooseStart);
             ReadBool(node, "ignoreDropoutSpheres", ref IgnoreDropout);
-
             double multiplier = DropoutMultiplier;
             ReadDouble(node, "dropoutSphereMultiplier", ref multiplier);
             if (multiplier > 0.0) DropoutMultiplier = multiplier;
             else UnityEngine.Debug.Log(CrunchText.LogSettingsBadValue("dropoutSphereMultiplier", node.GetValue("dropoutSphereMultiplier")));
-
             UnityEngine.Debug.Log(CrunchText.LogSettingsLoaded(AllowWarp, AllowNearbyCraft, UseTurnController, DropoutMultiplier, LooseStart, IgnoreDropout));
         }
-
         static void ReadBool(ConfigNode node, string key, ref bool value)
         {
             string text = node.GetValue(key);
@@ -63,7 +50,6 @@ namespace CrunchDrives
             if (bool.TryParse(text.Trim(), out parsed)) value = parsed;
             else UnityEngine.Debug.Log(CrunchText.LogSettingsBadValue(key, text));
         }
-
         static void ReadDouble(ConfigNode node, string key, ref double value)
         {
             string text = node.GetValue(key);

@@ -2,47 +2,34 @@ using System;
 using System.Collections.Generic;
 using CrunchDrives.Core;
 using UnityEngine;
-
 namespace CrunchDrives
 {
-    // The crunch drive as a part. It holds no crunch logic of its own: its presence on the craft is what permits a
-    // crunch (see CrunchController.HasDrive), its right-click menu is the player's control panel, and it plays the
-    // sound cues. The first drive on the active craft is the "primary" one; it owns the settings, the cues and the
-    // performance stats (see Stats), and any further drive just shows standby.
     public class ModuleCrunchDrive : PartModule, IModuleInfo
     {
         const string MainGroup = "CrunchDrive";
         const string TargetGroup = "CrunchDriveTarget";
-        const string LegacyManualModeName = "Fixed-Time";   // What Manual mode was called in older saves.
+        const string LegacyManualModeName = "Fixed-Time";
         const float MaxManualSeconds = 1000000f;
-
-        // Effect names. They must match the entries in the part's EFFECTS block.
-        const string FxSpool = "crunchSpool";        // Loop while the Casimir blades spin up.
-        const string FxReady = "crunchReady";        // One-shot when enough negative energy has accumulated.
-        const string FxEngage = "crunchEngage";      // One-shot when a crunch field forms.
-        const string FxField = "crunchField";        // Loop while a crunch field is up.
-        const string FxCollapse = "crunchCollapse";  // One-shot when a crunch field collapses.
-
-        // ---- Part stats (set in the part's cfg; missing or 0 = the CrunchTuning default of the same name) ----
-        // Only the primary drive's stats count; the controller takes a copy when a spool starts.
-
-        [KSPField(isPersistant = false)] public string variantSwitchID = "meshSwitch";   // The moduleID of the part's B9PartSwitch that holds its variants, for the count in the part info.
-        [KSPField(isPersistant = false)] public double minSpeedC = 0.0;                // Average speed (c) of the shortest spool.
-        [KSPField(isPersistant = false)] public double maxSpeedC = 0.0;                // Average speed (c) of a full spool, and the cap on the peak speed of any crunch.
-        [KSPField(isPersistant = false)] public double rampSeconds = 0.0;              // Ramp-up and ramp-down duration of every crunch.
-        [KSPField(isPersistant = false)] public double spoolEcPerSecond = 0.0;         // Charge one spool second costs, and the draw a new part starts at.
-        [KSPField(isPersistant = false)] public double spoolRateMinEc = 0.0;           // Lowest draw (EC/s) the player can set.
-        [KSPField(isPersistant = false)] public double spoolRateMaxEc = 0.0;           // Highest draw (EC/s) the player can set.
-        [KSPField(isPersistant = false)] public double spoolRateStepEc = 0.0;          // Step of the draw setting (EC/s).
-        [KSPField(isPersistant = false)] public double minSpoolSeconds = 0.0;          // Shortest spool: the crunch can be engaged after this long.
-        [KSPField(isPersistant = false)] public double maxSpoolSeconds = 0.0;          // A full spool: gives maxSpeedC and ends by itself.
-        [KSPField(isPersistant = false)] public double glowSpoolSeconds = 0.0;         // The emissive glow reaches full this many spool seconds after the spool starts.
-        [KSPField(isPersistant = false)] public double targetAlignToleranceDeg = 0.0;  // How far off the target the craft may be when a crunch starts.
-        [KSPField(isPersistant = false)] public double minCrunchSeconds = 0.0;         // No leg is shorter than this.
-        [KSPField(isPersistant = false)] public double captureSpeedFraction = 0.0;     // Capture assistance slows the craft to at most this x local escape speed.
-        [KSPField(isPersistant = false)] public double captureSafeAltitude = 0.0;      // Capture assistance keeps periapsis at least this far above the surface/atmosphere (m).
-
-        // The numbers the controller works with: the cfg value where one is set, otherwise the CrunchTuning default.
+        const string FxSpool = "crunchSpool";
+        const string FxReady = "crunchReady";
+        const string FxEngage = "crunchEngage";
+        const string FxField = "crunchField";
+        const string FxCollapse = "crunchCollapse";
+        [KSPField(isPersistant = false)] public string variantSwitchID = "meshSwitch";
+        [KSPField(isPersistant = false)] public double minSpeedC = 0.0;
+        [KSPField(isPersistant = false)] public double maxSpeedC = 0.0;
+        [KSPField(isPersistant = false)] public double rampSeconds = 0.0;
+        [KSPField(isPersistant = false)] public double spoolEcPerSecond = 0.0;
+        [KSPField(isPersistant = false)] public double spoolRateMinEc = 0.0;
+        [KSPField(isPersistant = false)] public double spoolRateMaxEc = 0.0;
+        [KSPField(isPersistant = false)] public double spoolRateStepEc = 0.0;
+        [KSPField(isPersistant = false)] public double minSpoolSeconds = 0.0;
+        [KSPField(isPersistant = false)] public double maxSpoolSeconds = 0.0;
+        [KSPField(isPersistant = false)] public double glowSpoolSeconds = 0.0;
+        [KSPField(isPersistant = false)] public double targetAlignToleranceDeg = 0.0;
+        [KSPField(isPersistant = false)] public double minCrunchSeconds = 0.0;
+        [KSPField(isPersistant = false)] public double captureSpeedFraction = 0.0;
+        [KSPField(isPersistant = false)] public double captureSafeAltitude = 0.0;
         public DriveStats Stats
         {
             get
@@ -61,167 +48,106 @@ namespace CrunchDrives
                 return s;
             }
         }
-
         public double SpoolEcPerSecond { get { return spoolEcPerSecond > 0.0 ? spoolEcPerSecond : CrunchTuning.SpoolEcPerSecond; } }
         public double SpoolRateMinEc { get { return spoolRateMinEc > 0.0 ? spoolRateMinEc : CrunchTuning.SpoolRateMinEc; } }
         public double SpoolRateMaxEc { get { return spoolRateMaxEc > 0.0 ? spoolRateMaxEc : CrunchTuning.SpoolRateMaxEc; } }
         public double SpoolRateStepEc { get { return spoolRateStepEc > 0.0 ? spoolRateStepEc : CrunchTuning.SpoolRateStepEc; } }
-
-        // ---- Readouts: crunch field ----
-
         [KSPField(guiActive = true, guiActiveEditor = false, guiName = CrunchText.FieldStatus, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string statusLine = CrunchText.PhaseWord(CrunchPhase.Idle, false);
-
         [KSPField(guiActive = true, guiActiveEditor = false, guiName = CrunchText.FieldCoefficient, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string coefficientLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldSpool, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string spoolLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldLeg, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string legLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldProgress, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string progressLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldSpeed, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string speedLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldTime, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string timeLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldTraveled, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string traveledLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldOffAxis, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string offAxisLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldOrbital, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public string orbitalLine = "";
-
-        // ---- Buttons ----
-        // Start/stop of the spool, Engage and Exit are separate buttons, each shown only when it can be used. The action group's
-        // "Crunch Drive" action still does whatever the phase calls for.
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonEngage, active = false, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public void EngageEvent()
         {
             if (IsPrimary()) PushSettings();
             CrunchController.Engage();
         }
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonStart, active = true, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public void SpoolEvent()
         {
             if (IsPrimary()) PushSettings();
             CrunchController.ToggleSpool();
         }
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonStop, active = false, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public void ExitEvent()
         {
             CrunchController.Exit();
         }
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = "Direction", active = true, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public void DirectionEvent()
         {
             backwards = !backwards;
             if (IsPrimary()) PushSettings();
         }
-
         [KSPAction(CrunchText.ActionPrimary)]
         public void PrimaryAction(KSPActionParam param)
         {
             if (IsPrimary()) PushSettings();
             CrunchController.PrimaryAction();
         }
-
         [KSPAction(CrunchText.ButtonCancel)]
         public void CancelAction(KSPActionParam param)
         {
             CrunchController.Cancel();
         }
-
-        // ---- Readouts: target and dropout zones ----
-
         [KSPField(guiActive = true, guiActiveEditor = false, guiName = CrunchText.FieldTarget, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public string targetLine = CrunchText.TargetNone;
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldDistance, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public string distanceLine = "";
-
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldRange, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public string rangeLine = "";
-
-        // Electric charge per second the spool draws, set by the player in the VAB/SPH or in flight (before and during a spool).
-        // A higher draw reaches a given coefficient sooner and a lower one is easier on the craft's power, but one spool second always
-        // costs the same charge (SpoolEcPerSecond above), so a given coefficient costs the same total charge. The slider's range is the
-        // CrunchTuning default here and is set from the part's own limits in OnStart.
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = CrunchText.FieldDraw, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle),
          UI_FloatRange(minValue = (float)CrunchTuning.SpoolRateMinEc, maxValue = (float)CrunchTuning.SpoolRateMaxEc, stepIncrement = (float)CrunchTuning.SpoolRateStepEc, scene = UI_Scene.All)]
-        public float spoolDraw = 0f;   // 0 = not set yet: the first start uses the nominal rate.
-
-        // The draw the spool uses now.
+        public float spoolDraw = 0f;
         public double SpoolDrawRate
         {
             get { return Math.Max(SpoolRateMinEc, Math.Min(SpoolRateMaxEc, spoolDraw > 0f ? spoolDraw : SpoolEcPerSecond)); }
         }
-
-        // The label gets the body's name added in flight (see OnUpdate).
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldGravityWell, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public string gravityWellLine = "";
-
-        // ---- Settings (saved with the craft; set in the VAB/SPH and in flight) ----
-        // Which of them can be changed when is decided in OnUpdate: Mode and the Manual settings are locked in when the spool starts and the
-        // crunch is planned, Dropout Alt. and the Manual duration until the crunch starts, and Capture Assistance and Retrograde on Arrival
-        // are read when the crunch ends, so they can be changed at any time.
-
         [KSPField(isPersistant = true)]
-        public bool backwards = false;   // Orientation of the first leg. Changed with the direction button. Two-Leg mode always goes forward first.
-
+        public bool backwards = false;
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.FieldMode, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_ChooseOption(scene = UI_Scene.All)]
         public string travelMode = CrunchText.ModeNames[0];
-
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = CrunchText.ToggleCaptureAssist, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.All)]
         public bool captureAssist = true;
-
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = CrunchText.ToggleSasRetrograde, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_Toggle(disabledText = CrunchText.ToggleOff, enabledText = CrunchText.ToggleOn, scene = UI_Scene.All)]
         public bool sasRetrograde = true;
-
-        // Every dropout sphere reaches at least this high above its body (km, like the HUD's altitude). 0 = not set: the spheres' own altitudes.
-        // The slider's range comes from the body the craft is at (see UpdateDropoutRange).
-        // UNVERIFIED KSP API: UI_FloatEdit's members, and the slider showing its minimum while the stored value is below it.
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = CrunchText.FieldDropoutAlt, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_FloatEdit(scene = UI_Scene.All, minValue = 0f, maxValue = (float)(CrunchTuning.DropoutAltitudeEditorMax / 1000.0), incrementLarge = 100f, incrementSmall = 10f, incrementSlide = 1f, sigFigs = 0)]
         public float dropoutAltKm = 0f;
-
-        // ---- Manual mode (shown only while the mode is Manual; editable in the VAB/SPH and in flight) ----
-        // UNVERIFIED KSP API: UI_FloatEdit's members (minValue, maxValue, incrementLarge, incrementSmall, incrementSlide, sigFigs, unit), and
-        // typed-number entry into it.
-
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualSet, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_ChooseOption(scene = UI_Scene.All)]
         public string manualSet = CrunchText.ManualSetNames[1];
-
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualSpeed, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_FloatEdit(scene = UI_Scene.All, minValue = 0.25f, maxValue = 250f, incrementLarge = 10f, incrementSmall = 1f, incrementSlide = 0.05f, sigFigs = 2)]
         public float manualSpeedC = 1f;
-
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = CrunchText.FieldManualTime, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle),
          UI_FloatEdit(scene = UI_Scene.All, minValue = 1f, maxValue = MaxManualSeconds, incrementLarge = 60f, incrementSmall = 10f, incrementSlide = 1f, sigFigs = 0)]
         public float crunchSeconds = 10f;
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonFillHalf, active = false, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public void FillHalfEvent() { FillSeconds(0.5); }
-
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonFillFull, active = false, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public void FillFullEvent() { FillSeconds(1.0); }
-
-        // Every readout field, so a drive that is not in control can hide them all.
         static readonly string[] ReadoutFields =
         {
             nameof(coefficientLine), nameof(spoolLine), nameof(legLine), nameof(progressLine), nameof(speedLine),
@@ -229,48 +155,37 @@ namespace CrunchDrives
             nameof(targetLine), nameof(distanceLine), nameof(rangeLine), nameof(spoolDraw),
             nameof(gravityWellLine), nameof(travelMode), nameof(captureAssist), nameof(sasRetrograde), nameof(dropoutAltKm)
         };
-
         static readonly string[] ButtonEvents = { nameof(EngageEvent), nameof(SpoolEvent), nameof(ExitEvent), nameof(DirectionEvent), nameof(FillHalfEvent), nameof(FillFullEvent) };
-
-        // The tube of light, parented to this part. Only the primary drive shows one.
         CrunchTube tube;
         bool tubeWasSpooling;
-        float tubeIntensity;        // The tube's brightness (0..1) at the last tick of the crunch field, kept while the field is down.
-
-        // Emissive glow: the part's own materials that have an emissive colour are set directly, from 0 (grey) to 1 (full glow).
-        // No ModuleColorChanger (or any other glow module) is involved, so nothing else can fight over the value.
+        float tubeIntensity;
         static readonly int EmissiveColorId = Shader.PropertyToID("_EmissiveColor");
-        readonly List<Material> glowMaterials = new List<Material>();   // This part's own copies of its emissive materials.
+        readonly List<Material> glowMaterials = new List<Material>();
         bool glowCollected;
         float glow;
         float glowSent = -1f;
-
         CrunchPhase lastPhase = CrunchPhase.Idle;
-        const float FieldPitchFloorPower = 0.05f;   // Power that gives the field loop's lowest pitch (at 0c); the cue's pitch curve in the part's config starts here.
-        const float SpoolPitchFloorPower = 0.05f;   // Power that gives the lowest pitch; the cue's pitch curve in the part's config starts here.
-        float spoolPitch = 1f;      // The pitch the spool loop had while the spool ran.
-        float spoolFallStart = -1f; // When the loop began to fall (unscaled time); -1 = not falling.
+        const float FieldPitchFloorPower = 0.05f;
+        const float SpoolPitchFloorPower = 0.05f;
+        float spoolPitch = 1f;
+        float spoolFallStart = -1f;
         float spoolFallFrom;
         float spoolFallSeconds;
-        float spoolPower = -1f;   // The power last sent to the spool cue (it drives the cue's pitch); -1 = none yet.
+        float spoolPower = -1f;
         bool wasField;
-        float fieldPower = -1f;   // The power last sent to the field cue (it drives the cue's pitch); -1 = none yet.
-        CelestialBody rangeBody;                                                 // The body the Dropout Alt. slider's range was set for.
-        string wellShown = "";                                                   // The body named on the Gravity Well label.
-        bool menuDirty;                                                          // A field was shown or hidden; the open menu must be rebuilt.
+        float fieldPower = -1f;
+        CelestialBody rangeBody;
+        string wellShown = "";
+        bool menuDirty;
         static float lastMenuRefresh = -10f;
-        const float MenuRefreshGapSeconds = 0.25f;                               // Never rebuild the menu more often than this, whatever changes.
-
-        // The first drive (in part order) on a craft, cached for a moment: scanning every part is wasteful at frame rate.
+        const float MenuRefreshGapSeconds = 0.25f;
         static ModuleCrunchDrive cachedPrimary;
         static float cachedAt = -10f;
         const float CacheSeconds = 0.5f;
-
         public static ModuleCrunchDrive PrimaryFor(Vessel v)
         {
             if (v == null) return null;
             if (cachedPrimary != null && cachedPrimary.vessel == v && Time.unscaledTime - cachedAt < CacheSeconds) return cachedPrimary;
-
             cachedPrimary = null;
             for (int i = 0; i < v.parts.Count; i++)
             {
@@ -280,55 +195,40 @@ namespace CrunchDrives
             cachedAt = Time.unscaledTime;
             return cachedPrimary;
         }
-
         public static bool HasDrive(Vessel v) { return PrimaryFor(v) != null; }
-        readonly Dictionary<string, double> heldCues = new Dictionary<string, double>();   // One-shot effect -> time to switch it off again.
+        readonly Dictionary<string, double> heldCues = new Dictionary<string, double>();
         readonly List<string> releasedCues = new List<string>();
-
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
-
-            // The mode names live in CrunchText, so they are handed to the selector here rather than in the attribute.
             CrunchSettings.EnsureLoaded();
             SetOptions(Fields[nameof(travelMode)].uiControlEditor as UI_ChooseOption);
             SetOptions(Fields[nameof(travelMode)].uiControlFlight as UI_ChooseOption);
-            SetDropoutRange(Fields[nameof(dropoutAltKm)], CrunchTuning.MinDropoutAltitude * CrunchSettings.DropoutMultiplier / 1000.0, CrunchTuning.DropoutAltitudeEditorMax / 1000.0);   // Until a body is known (the VAB/SPH has none).
+            SetDropoutRange(Fields[nameof(dropoutAltKm)], CrunchTuning.MinDropoutAltitude * CrunchSettings.DropoutMultiplier / 1000.0, CrunchTuning.DropoutAltitudeEditorMax / 1000.0);
             SetManualOptions(Fields[nameof(manualSet)].uiControlEditor as UI_ChooseOption);
             SetManualOptions(Fields[nameof(manualSet)].uiControlFlight as UI_ChooseOption);
-
-            // Manual mode's speed stays within the drive's own range (the part's cfg can change it).
             DriveStats st = Stats;
             SetSpeedRange(Fields[nameof(manualSpeedC)].uiControlEditor as UI_FloatEdit, st);
             SetSpeedRange(Fields[nameof(manualSpeedC)].uiControlFlight as UI_FloatEdit, st);
-
-            if (travelMode == LegacyManualModeName) travelMode = CrunchText.ModeNames[(int)TravelMode.Manual];   // Older saves.
+            if (travelMode == LegacyManualModeName) travelMode = CrunchText.ModeNames[(int)TravelMode.Manual];
             if (Array.IndexOf(CrunchText.ManualSetNames, manualSet) < 0) manualSet = CrunchText.ManualSetNames[1];
             ClampManual();
-
-            // The draw slider's limits are the part's own, which the attribute (a compile-time constant) cannot hold.
             BaseField draw = Fields[nameof(spoolDraw)];
             SetDrawRange(draw.uiControlEditor as UI_FloatRange);
             SetDrawRange(draw.uiControlFlight as UI_FloatRange);
-
-            if (spoolDraw <= 0f) spoolDraw = (float)SpoolDrawRate;   // A new part starts at its nominal draw.
-
-            glowCollected = false;   // The glow materials are gathered on first use, once the part's meshes are set up.
-
+            if (spoolDraw <= 0f) spoolDraw = (float)SpoolDrawRate;
+            glowCollected = false;
             if (HighLogic.LoadedSceneIsFlight)
             {
                 tube = new CrunchTube();
                 tube.Attach(part);
             }
         }
-
         void OnDestroy()
         {
             if (tube != null) tube.Dispose();
             ReleaseGlowMaterials();
         }
-
-        // The Dropout Alt. slider's limits (km): from the body's own dropout altitude up. Whole kilometres, so the minimum is never below it.
         static void SetDropoutRange(BaseField field, double minKm, double maxKm)
         {
             float lo = (float)System.Math.Ceiling(minKm);
@@ -341,8 +241,6 @@ namespace CrunchDrives
                 edits[i].maxValue = hi;
             }
         }
-
-        // In flight the slider follows the body the craft is at.
         void UpdateDropoutRange()
         {
             CelestialBody body = vessel != null ? vessel.mainBody : null;
@@ -353,37 +251,27 @@ namespace CrunchDrives
             SetDropoutRange(Fields[nameof(dropoutAltKm)], lo / 1000.0, hi / 1000.0);
             menuDirty = true;
         }
-
         static void SetOptions(UI_ChooseOption option)
         {
             if (option != null) option.options = CrunchText.ModeNames;
         }
-
         static void SetManualOptions(UI_ChooseOption option)
         {
             if (option != null) option.options = CrunchText.ManualSetNames;
         }
-
         static void SetSpeedRange(UI_FloatEdit edit, DriveStats st)
         {
             if (edit == null) return;
             edit.minValue = (float)st.MinSpeedC;
             edit.maxValue = (float)st.MaxSpeedC;
         }
-
-        // ---- Manual mode ----
-
         int ManualIndex()
         {
             int i = Array.IndexOf(CrunchText.ManualSetNames, manualSet);
             return i < 0 ? 1 : i;
         }
-
         bool ManualSetsSpeed() { int i = ManualIndex(); return i == 0 || i == 2; }
         bool ManualSetsTime() { int i = ManualIndex(); return i == 1 || i == 2; }
-
-        // Out-of-range entries snap back: a speed above the drive's top speed to the top speed, one below its slowest to the slowest
-        // (0.25c to 250c unless the part says otherwise).
         void ClampManual()
         {
             DriveStats st = Stats;
@@ -393,8 +281,6 @@ namespace CrunchDrives
             if (!(crunchSeconds >= 1f)) crunchSeconds = 1f;
             else if (crunchSeconds > MaxManualSeconds) crunchSeconds = MaxManualSeconds;
         }
-
-        // The Fill buttons put the time to cover a share of the way to the target into the time field.
         void FillSeconds(double share)
         {
             if (!IsPrimary()) return;
@@ -405,8 +291,6 @@ namespace CrunchDrives
             ClampManual();
             menuDirty = true;
         }
-
-        // Shows or hides a Manual field in the current scene (the field's editor flag in the VAB/SPH, its flight flag in flight).
         void SetManualVisible(string field, bool on)
         {
             BaseField f = Fields[field];
@@ -416,16 +300,12 @@ namespace CrunchDrives
             if (editor) f.guiActiveEditor = on; else f.guiActive = on;
             menuDirty = true;
         }
-
         void ShowManualFields(bool show)
         {
             SetManualVisible(nameof(manualSet), show);
             SetManualVisible(nameof(manualSpeedC), show && ManualSetsSpeed());
             SetManualVisible(nameof(crunchSeconds), show && ManualSetsTime());
         }
-
-        // Part modules are MonoBehaviours, so Update also runs in the VAB/SPH (OnUpdate does not). UNVERIFIED: that toggling guiActiveEditor
-        // at runtime and flagging the open window dirty rebuilds the menu in the editor.
         void Update()
         {
             if (!HighLogic.LoadedSceneIsEditor) return;
@@ -433,7 +313,6 @@ namespace CrunchDrives
             ShowManualFields(ModeIndex() == (int)TravelMode.Manual);
             RefreshMenuIfNeeded();
         }
-
         void SetDrawRange(UI_FloatRange range)
         {
             if (range == null) return;
@@ -441,15 +320,11 @@ namespace CrunchDrives
             range.maxValue = (float)SpoolRateMaxEc;
             range.stepIncrement = (float)SpoolRateStepEc;
         }
-
         public override void OnUpdate()
         {
             if (!HighLogic.LoadedSceneIsFlight) return;
-
             CrunchPhase phase = CrunchController.CurrentPhase;
-
-            UpdateGlow(phase);   // Every drive on the active craft glows, not just the primary one.
-
+            UpdateGlow(phase);
             if (!IsPrimary())
             {
                 statusLine = CrunchText.StatusStandby;
@@ -464,9 +339,7 @@ namespace CrunchDrives
                 RefreshMenuIfNeeded();
                 return;
             }
-
             PushSettings();
-
             bool turning = CrunchController.IsTurning;
             bool spooling = CrunchController.IsSpooling;
             bool crunching = phase == CrunchPhase.Crunching;
@@ -475,115 +348,75 @@ namespace CrunchDrives
             bool manual = ModeIndex() == (int)TravelMode.Manual;
             bool openEnded = CrunchController.IsOpenEnded;
             bool twoLeg = ModeIndex() == (int)TravelMode.TwoLeg;
-            bool beforeSpool = phase == CrunchPhase.Idle || phase == CrunchPhase.Ready;   // Not spooling and not crunching.
+            bool beforeSpool = phase == CrunchPhase.Idle || phase == CrunchPhase.Ready;
             bool dir = EffectiveBackwards();
-
-            // ---- Readouts: crunch field ----
             statusLine = CrunchText.PhaseWord(phase, turning, spooling);
-
-            // The spool's own numbers; once the field is up the speed readouts below show the coefficient.
             coefficientLine = CrunchText.FieldCoefficientValue(CrunchController.ActiveTierC);
             SetVisible(nameof(coefficientLine), spooling || phase == CrunchPhase.Ready);
-
             spoolLine = CrunchText.FieldSpoolValue(CrunchController.SpoolSecondsPaid);
             SetVisible(nameof(spoolLine), spooling);
-
-            SetVisible(nameof(spoolDraw), !crunching);   // The draw can be changed before and during a spool.
-
+            SetVisible(nameof(spoolDraw), !crunching);
             legLine = CrunchText.FieldLegValue(CrunchController.CurrentLeg, CrunchController.ActiveBackwards);
             SetVisible(nameof(legLine), CrunchController.IsTwoLeg);
-
             progressLine = CrunchText.FieldProgressValue(CrunchController.LegElapsed, CrunchController.LegDuration);
-            SetVisible(nameof(progressLine), field && !openEnded);   // A crunch with no set duration has no progress.
-
+            SetVisible(nameof(progressLine), field && !openEnded);
             speedLine = CrunchText.FieldSpeedValue(CrunchController.LiveSpeedC);
             SetVisible(nameof(speedLine), field);
-
             timeLine = CrunchText.FieldTimeValue(CrunchController.LegElapsed, CrunchController.LegDuration);
             SetVisible(nameof(timeLine), field);
-
             traveledLine = CrunchText.FormatDistance(CrunchController.TraveledMeters);
             SetVisible(nameof(traveledLine), field);
-
             offAxisLine = CrunchText.FieldOffAxisValue(CrunchController.OffAxisDeg);
             SetVisible(nameof(offAxisLine), field);
-
             orbitalLine = CrunchText.FieldOrbitalValue(vessel.obt_velocity.magnitude, vessel.mainBody.name);
             SetVisible(nameof(orbitalLine), field);
-
-            // ---- Readouts: target and gravity well ----
             targetLine = hasTarget ? CrunchController.TargetName : CrunchText.TargetNone;
             SetVisible(nameof(targetLine), true);
-
             distanceLine = CrunchText.DistanceToStop(CrunchController.TargetStopMeters, CrunchController.TargetIsBody);
             SetVisible(nameof(distanceLine), hasTarget);
-
             rangeLine = CrunchText.FieldRangeValue(crunchSeconds, CrunchController.ActiveTierC);
             SetVisible(nameof(rangeLine), manual && ManualSetsTime() && (phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready));
-
-            // The label names the body; the value is its dropout sphere's altitude, to compare with the HUD's.
             bool well = CrunchController.GravityWellName.Length > 0;
             if (well)
             {
                 if (CrunchController.GravityWellName != wellShown)
                 {
                     wellShown = CrunchController.GravityWellName;
-                    Fields[nameof(gravityWellLine)].guiName = CrunchText.FieldGravityWellFor(wellShown);   // UNVERIFIED: an open menu picks up the new label.
+                    Fields[nameof(gravityWellLine)].guiName = CrunchText.FieldGravityWellFor(wellShown);
                     menuDirty = true;
                 }
                 gravityWellLine = CrunchText.FieldGravityWellValue(CrunchController.DropoutAltitudeMeters);
             }
             SetVisible(nameof(gravityWellLine), well);
-
-            // ---- Settings ----
             UpdateDropoutRange();
-            SetVisible(nameof(travelMode), beforeSpool);                     // Locked in once the spool starts.
-            SetVisible(nameof(captureAssist), true);                         // Read when the crunch ends, so always open to change.
+            SetVisible(nameof(travelMode), beforeSpool);
+            SetVisible(nameof(captureAssist), true);
             SetVisible(nameof(sasRetrograde), true);
             SetVisible(nameof(dropoutAltKm), !crunching);
-
-            // Manual settings: shown only in Manual mode (not during a crunch). The Fill buttons need a target and a known speed: the one
-            // the player set, or else the one the finished spool reached.
             ShowManualFields(manual && !crunching);
             bool fill = manual && !crunching && hasTarget && ManualSetsTime() && (ManualSetsSpeed() || phase == CrunchPhase.Ready);
             SetEventActive(nameof(FillHalfEvent), fill);
             SetEventActive(nameof(FillFullEvent), fill);
-
-            // ---- Buttons ----
             BaseEvent engage = Events[nameof(EngageEvent)];
             engage.guiName = CrunchText.PrimaryButton(CrunchPhase.Ready, dir);
-            SetEventActive(nameof(EngageEvent), CrunchController.CanEngage);   // After the spool has started: once it is long enough, and while ready.
-
+            SetEventActive(nameof(EngageEvent), CrunchController.CanEngage);
             Events[nameof(SpoolEvent)].guiName = phase == CrunchPhase.Idle ? CrunchText.ButtonStart : CrunchText.ButtonCancel;
             SetEventActive(nameof(SpoolEvent), !crunching);
-
             Events[nameof(ExitEvent)].guiName = CrunchText.PrimaryButton(CrunchPhase.Crunching, dir, turning);
             SetEventActive(nameof(ExitEvent), crunching);
-
-            // Two-Leg mode always goes forward first; One-Leg and Manual let the player choose. Locked in once the spool starts.
             Events[nameof(DirectionEvent)].guiName = CrunchText.ButtonDirection(dir);
             SetEventActive(nameof(DirectionEvent), beforeSpool && !twoLeg);
-
             double speedC = CrunchController.LiveSpeedC;
             UpdateSounds(phase, spooling, field, speedC);
             UpdateTube(spooling, field, speedC);
             lastPhase = phase;
             RefreshMenuIfNeeded();
         }
-
-        // ---- Emissive glow ----
-        // Rises with the charge the blades have drawn, holds at full while ready and while the field is up, then fades back to grey. The
-        // mid-course turn counts as leaving the crunch: the glow fades while the craft turns and rises again with the second spool.
-
-        // Finds every material on this part that has an emissive colour and takes a private copy of it, so only this part glows
-        // (the part's materials are shared with every other copy of it). The copies are made once and kept. A part with no such
-        // material simply never glows.
         void CollectGlowMaterials()
         {
             ReleaseGlowMaterials();
             glowCollected = true;
             glowSent = -1f;
-
             Renderer[] renderers = part.GetComponentsInChildren<Renderer>(true);
             int found = 0;
             for (int i = 0; i < renderers.Length; i++)
@@ -591,80 +424,53 @@ namespace CrunchDrives
                 Renderer r = renderers[i];
                 if (r == null || r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
                 Material shared = r.sharedMaterial;
-                if (shared == null || !shared.HasProperty(EmissiveColorId)) continue;   // The tube of light, for one, has none.
-
-                Material own = r.material;   // Makes this renderer's own copy.
+                if (shared == null || !shared.HasProperty(EmissiveColorId)) continue;
+                Material own = r.material;
                 glowMaterials.Add(own);
                 found++;
             }
             if (found == 0) Debug.Log(CrunchText.LogNoGlowMaterial);
             else Debug.Log(CrunchText.LogGlowMaterials(found, renderers.Length));
         }
-
         void ReleaseGlowMaterials()
         {
             for (int i = 0; i < glowMaterials.Count; i++)
                 if (glowMaterials[i] != null) Destroy(glowMaterials[i]);
             glowMaterials.Clear();
         }
-
         void UpdateGlow(CrunchPhase phase)
         {
             if (!glowCollected) CollectGlowMaterials();
             if (glowMaterials.Count == 0) return;
-
             float target = 0f;
             if (vessel == FlightGlobals.ActiveVessel)
             {
                 if (CrunchController.IsSpooling) target = Mathf.Clamp01((float)CrunchController.SpoolFraction);
                 else if (phase == CrunchPhase.Ready || (phase == CrunchPhase.Crunching && !CrunchController.IsTurning)) target = 1f;
             }
-
             if (target >= glow) glow = target;
             else glow = Mathf.MoveTowards(glow, target, Time.deltaTime / (float)CrunchTuning.GlowFadeSeconds);
-
-            // Only touch the materials when the value has actually moved.
             if (Mathf.Abs(glow - glowSent) < 0.002f && !(glow == 0f && glowSent != 0f)) return;
             glowSent = glow;
-
-            Color emissive = new Color(glow, glow, glow, glow);   // The shader multiplies this with the part's emissive texture.
+            Color emissive = new Color(glow, glow, glow, glow);
             for (int i = 0; i < glowMaterials.Count; i++)
             {
                 glowMaterials[i].SetColor(EmissiveColorId, emissive);
             }
         }
-
-        // ---- Tube of light ----
-        // Shown for exactly as long as the crunch field is up: from engage until dropout, and not during the mid-course turn.
-        // Its brightness follows the live speed (CrunchTuning.TubeMinBrightness at 0c, full at CrunchTuning.TubeFullBrightnessC and above). The last brightness
-        // is kept while the field is down, so the tube fades out from where it was.
-        // The craft is measured at the start of every spool, so the tube is ready when the field forms.
-
         void UpdateTube(bool spooling, bool field, double speedC)
         {
             if (tube == null) return;
-
-            // Measured at the start of every spool except the one between the legs: the craft is the same then, and measuring again
-            // right after the turn gave a different (longer) tube for the second leg. Measured anyway if there is no measurement yet.
             if (spooling && !tubeWasSpooling && (!CrunchController.IsTurning || !tube.IsBuilt)) tube.Measure(part, vessel);
             tubeWasSpooling = spooling;
-
             if (field) tubeIntensity = (float)CrunchMath.TubeBrightness(speedC, CrunchTuning.TubeFullBrightnessC, CrunchTuning.TubeMinBrightness);
             tube.Tick(Time.deltaTime, field, tubeIntensity);
         }
-
-        // ---- Settings sync ----
-
-        // The controller reads CrunchTuning, so the primary drive copies its saved settings there.
-        // While a crunch is running the controller keeps the values it planned with, so most are not copied then. Capture assistance and
-        // retrograde are only read when the crunch ends, so they are copied all the time.
         void PushSettings()
         {
             CrunchTuning.CaptureAssist = captureAssist;
             CrunchTuning.SasRetrograde = sasRetrograde;
-
             if (CrunchController.CurrentPhase == CrunchPhase.Crunching) return;
-
             CrunchTuning.Backwards = EffectiveBackwards();
             CrunchTuning.Mode = (TravelMode)ModeIndex();
             ClampManual();
@@ -674,27 +480,19 @@ namespace CrunchDrives
             CrunchTuning.CrunchSeconds = crunchSeconds;
             CrunchTuning.PlayerDropoutAltitude = System.Math.Max(0.0, dropoutAltKm) * 1000.0;
         }
-
-        // Two-Leg mode always goes forward first, whatever the direction button says.
         bool EffectiveBackwards()
         {
             return backwards && ModeIndex() != (int)TravelMode.TwoLeg;
         }
-
         int ModeIndex()
         {
             int i = Array.IndexOf(CrunchText.ModeNames, travelMode);
             return i < 0 ? 0 : i;
         }
-
-        // Only the first drive on the active craft is in control.
         bool IsPrimary()
         {
             return vessel != null && vessel == FlightGlobals.ActiveVessel && PrimaryFor(vessel) == this;
         }
-
-        // ---- Menu helpers ----
-
         void SetVisible(string field, bool on)
         {
             BaseField f = Fields[field];
@@ -702,17 +500,14 @@ namespace CrunchDrives
             f.guiActive = on;
             menuDirty = true;
         }
-
         void SetFieldsVisible(string[] names, bool on)
         {
             for (int i = 0; i < names.Length; i++) SetVisible(names[i], on);
         }
-
         void SetEventsActive(string[] names, bool on)
         {
             for (int i = 0; i < names.Length; i++) SetEventActive(names[i], on);
         }
-
         void SetEventActive(string name, bool on)
         {
             BaseEvent e = Events[name];
@@ -720,8 +515,6 @@ namespace CrunchDrives
             e.active = on;
             menuDirty = true;
         }
-
-        // Showing or hiding a field only takes effect in an already-open menu once the window is told to redraw.
         void RefreshMenuIfNeeded()
         {
             if (!menuDirty || Time.unscaledTime - lastMenuRefresh < MenuRefreshGapSeconds) return;
@@ -730,17 +523,10 @@ namespace CrunchDrives
             foreach (UIPartActionWindow w in FindObjectsOfType<UIPartActionWindow>())
                 if (w.part == part) w.displayDirty = true;
         }
-
-        // ---- Sound cues ----
-        // Each cue is an entry in the part's EFFECTS block, started with Part.Effect(name, 1) and stopped with 0.
-        // Loops stay on until switched off. One-shots are switched off again after CrunchTuning.CueHoldSeconds, so they can play again.
-
         void UpdateSounds(CrunchPhase phase, bool spooling, bool field, double speedC)
         {
             ReleaseCues();
-
             UpdateSpoolCue(phase, spooling, field);
-
             if (field != wasField)
             {
                 OneShot(field ? FxEngage : FxCollapse);
@@ -748,17 +534,11 @@ namespace CrunchDrives
                 if (!field) { part.Effect(FxField, 0f); fieldPower = -1f; }
             }
             UpdateFieldCue(field, speedC);
-
             if (lastPhase == CrunchPhase.Spooling && phase == CrunchPhase.Ready) OneShot(FxReady);
         }
-
-        // The field loop plays while the crunch field is up, and its pitch follows the live speed: the lowest at 0c, the highest at the
-        // drive's top speed, on a logarithmic scale (CrunchMath.SpeedPitchFraction). Like the spool loop, the pitch is carried by the power
-        // sent to the cue (0.05 to 1; 0 stops it), and the cue's pitch curve in the part's config maps that power to the pitch.
         void UpdateFieldCue(bool field, double speedC)
         {
             if (!field) return;
-
             float fraction = (float)CrunchMath.SpeedPitchFraction(speedC, Stats.MaxSpeedC);
             float power = FieldPitchFloorPower + (1f - FieldPitchFloorPower) * fraction;
             if (fieldPower < 0f || Mathf.Abs(power - fieldPower) > 0.004f)
@@ -767,17 +547,11 @@ namespace CrunchDrives
                 fieldPower = power;
             }
         }
-
-        // The spool loop plays from the start of a spool: its pitch rises over the first moments and holds at normal while the
-        // spool runs. When the spool ends (the ready cue plays, or the player engages straight from the spool, or it is cancelled)
-        // the pitch falls to the floor and the loop stops, over CrunchTuning.SpoolPitchFallSeconds. The pitch is carried by the
-        // power sent to the cue (0.05 to 1; 0 stops it), and the cue's pitch curve in the part's config maps that power to the pitch.
         void UpdateSpoolCue(CrunchPhase phase, bool spooling, bool field)
         {
             float start = (float)CrunchTuning.SpoolPitchStart;
             float floor = (float)CrunchTuning.SpoolPitchFloor;
-            float pitch = -1f;   // Negative = the loop is off.
-
+            float pitch = -1f;
             if (spooling)
             {
                 float rise = CrunchTuning.SpoolPitchRiseSeconds > 0.0
@@ -789,7 +563,6 @@ namespace CrunchDrives
             }
             else if (spoolPower >= 0f)
             {
-                // The spool has just ended and the loop is still on: let it fall.
                 if (spoolFallStart < 0f)
                 {
                     spoolFallStart = Time.unscaledTime;
@@ -799,14 +572,12 @@ namespace CrunchDrives
                 float done = spoolFallSeconds > 0f ? Mathf.Clamp01((Time.unscaledTime - spoolFallStart) / spoolFallSeconds) : 1f;
                 if (done < 1f) pitch = Mathf.Lerp(spoolFallFrom, floor, done);
             }
-
             if (pitch < 0f)
             {
                 if (spoolPower >= 0f) { part.Effect(FxSpool, 0f); spoolPower = -1f; }
                 spoolFallStart = -1f;
                 return;
             }
-
             float power = SpoolPitchFloorPower + (1f - SpoolPitchFloorPower) * Mathf.Clamp01((pitch - floor) / Mathf.Max(0.0001f, 1f - floor));
             if (power != spoolPower && (spoolPower < 0f || Mathf.Abs(power - spoolPower) > 0.004f || pitch >= 1f))
             {
@@ -814,13 +585,11 @@ namespace CrunchDrives
                 spoolPower = power;
             }
         }
-
         void OneShot(string effect)
         {
             part.Effect(effect, 1f);
             heldCues[effect] = Time.time + CrunchTuning.CueHoldSeconds;
         }
-
         void ReleaseCues()
         {
             if (heldCues.Count == 0) return;
@@ -833,7 +602,6 @@ namespace CrunchDrives
                 heldCues.Remove(releasedCues[i]);
             }
         }
-
         void StopLoops()
         {
             if (spoolPower >= 0f) { part.Effect(FxSpool, 0f); spoolPower = -1f; }
@@ -841,38 +609,24 @@ namespace CrunchDrives
             if (wasField) { part.Effect(FxField, 0f); wasField = false; }
             fieldPower = -1f;
         }
-
-        // ---- Editor info ----
-
         public override string GetModuleDisplayName()
         {
             return CrunchText.ModuleTitle;
         }
-
-        // The part's info list in the VAB/SPH (the same place the stock engines list their thrust and propellants). It reads only
-        // this module's own cfg values, so it also works on the part's prefab, before any craft exists.
         public override string GetInfo()
         {
             DriveStats st = Stats;
             double fullCharge = st.MaxSpoolSeconds * SpoolEcPerSecond;
             return CrunchText.ModuleInfo + CrunchText.ModuleInfoStats(fullCharge, CrunchMath.MinChargeSeconds(fullCharge, SpoolRateMaxEc));
         }
-
-        // IModuleInfo: how the part's tooltip and info panel title this module and summarise it in one line (the way an engine
-        // shows "Max. Thrust"). UNVERIFIED: the interface's members are from memory.
         public string GetModuleTitle()
         {
             return CrunchText.ModuleTitle;
         }
-
         public Callback<Rect> GetDrawModulePanelCallback()
         {
-            return null;   // No custom panel; the text from GetInfo is shown.
+            return null;
         }
-
-        // How many variants the part has: the SUBTYPE nodes of its B9PartSwitch module with the moduleID in variantSwitchID. Other switches
-        // (a repaint switch another mod adds to every part, say) are not counted. Read from the part's own cfg. UNVERIFIED KSP API:
-        // AvailablePart.partConfig is set by the time the tooltip asks.
         int VariantCount()
         {
             try
@@ -888,7 +642,6 @@ namespace CrunchDrives
             }
             catch (Exception) { return 0; }
         }
-
         public string GetPrimaryField()
         {
             return CrunchText.PrimaryField(Stats.MaxSpeedC, Stats.TargetAlignToleranceDeg, VariantCount());

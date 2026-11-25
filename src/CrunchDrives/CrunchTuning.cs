@@ -1,127 +1,111 @@
 namespace CrunchDrives
 {
     public enum TravelMode { TwoLeg, OneLeg, Manual }
-
     public static class CrunchTuning
     {
-        // ---- Speed ----
-        public const double MinSpeedC = 0.25;   // Average speed (c) of the shortest spool.
-        public const double MaxSpeedC = 250.0;  // Average speed (c) of a full spool, and the hard cap on the PEAK speed of any crunch. The average of a short leg is lower: its ramps take a larger share (a very short leg averages half the peak).
-        public const double RampSeconds = 7.5;  // Ramp-up and ramp-down duration of every crunch, each capped at half the leg.
-
-        // ---- Spool (the Casimir blades spin up for as long as the player likes; a longer spool compresses the field harder) ----
-        public const double SpoolEcPerSecond = 5000.0;  // Charge one spool second costs, and the draw a new part starts at (the player can change the draw). A part can override it with its own spoolEcPerSecond in the cfg. A full spool (MaxSpoolSeconds) costs MaxSpoolSeconds x this, however fast it is drawn. The craft's stored charge is only a buffer: when it can no longer supply the draw, the spool ends.
-        public const double SpoolRateMinEc = 1000.0;    // Lowest draw (EC/s) the player can set: a slower spool that is easier on the craft's power.
-        public const double SpoolRateMaxEc = 50000.0;   // Highest draw (EC/s) the player can set: spool seconds are bought this much faster, so it needs that much supply.
-        public const double SpoolRateStepEc = 1000.0;   // Step of the draw setting (EC/s).
-        public const double MinSpoolSeconds = 5.0;      // Shortest spool: the crunch can be engaged after this long, and a spool shorter than this gives MinSpeedC.
-        public const double MaxSpoolSeconds = 1800.0;   // A spool this long (at the full draw) gives MaxSpeedC and ends by itself. The speed rises in a straight line from MinSpeedC at MinSpoolSeconds.
-        public const double SpoolDrySeconds = 0.125;    // The spool ends once the craft has been unable to supply the full draw for this long. 0 = the first short tick.
-        public const double GlowSpoolSeconds = 5.0;     // The part's emissive glow reaches full this many spool seconds after the spool starts.
-
-        // ---- Time warp ----
-        // Time warp is allowed during every spool, including the second one between the legs (if the setting is on).
-        public const double WarpMinLegSeconds = 45.0;       // During the crunch itself, on-rails time warp is allowed only for legs at least this long.
-        public const double WarpFinalSeconds = 5.0;         // Time warp is back to 1x this many seconds before a crunch leg ends.
-        public const double WarpSpoolFinalSeconds = 10.0;   // Time warp is back to 1x this many seconds before a spool ends.
-        public const double WarpStepSeconds = 2.5;          // Before that, each warp rate lasts at most about this many real seconds.
-
-        // ---- Sound cues ----
-        public const double CueHoldSeconds = 6.4;           // One-shot cues are held on this long, then reset so they can play again. Set it to the length of your longest one-shot clip.
-        public const double SpoolPitchRiseSeconds = 2.5;    // The spool loop's pitch rises from SpoolPitchStart to normal over this long after the spool starts.
-        public const double SpoolPitchFallSeconds = 1.5;    // When the spool ends without an engage (ready, or cancelled), the spool loop's pitch falls to SpoolPitchFloor over this long, then stops. After an engage it falls over the same time, so it ends as the craft starts to move.
-        public const double SpoolPitchStart = 0.5;          // Pitch at the start of the spool.
-        public const double SpoolPitchFloor = 0.25;         // Pitch the spool loop falls to as the field forms, before it ends. Must match the low end of the cue's pitch curve in the part's config.
-
-        // ---- Glow ----
-        public const double GlowFadeSeconds = 5.0;          // The part's emissive glow fades back to grey over this long after a crunch (or a cancelled spool).
-
-        // ---- Tube of light (the blinding white tube around the craft while a crunch field is up) ----
-        // Its size is fixed in CrunchTube: it reaches at least 1 m past the craft's ends and at least one ring diameter from the ring. Its curve and fade are set below.
-        public const double TubeRadiusFactor = 1.125;               // Tube radius = the ring's outer radius x this.
-        public const double TubeCurve = 1.0;                        // How much the tube closes in toward its ends, 0..1: 0 = a straight tube of the ring's radius, 1 = the bubble-like ellipse closing to a point. Both ends are the same.
-        public const double TubeFadeStart = 0.0;                    // Where the tube starts to fade out along its length, 0..2: 0 = at the ring itself (part of the craft shows through), 1 = once it has cleared the craft's outermost point, 2 = never (a solid tube that cuts off at its end). Both ends are the same.
-        public const double TubeBurstFadeStart = 0.0;               // The same as TubeFadeStart, for the tube that appears at full brightness when the crunch ends (it has the same curve and size as the tube during the crunch): 0 = fading from the ring, 1 = once it has cleared the craft's outermost point, 2 = a solid tube that cuts off. It fades out over TubeFadeOutSeconds.
-        public const int TubeSegments = 36;                         // Sides of the tube.
-        public const int TubeRings = 18;                            // Rings along each half of the tube, so the curve is smooth.
-        public const double TubeFullBrightnessC = 1.0;              // The tube's brightness follows the craft's live speed: at TubeMinBrightness at 0c, rising in a straight line to full at this speed (c) and above. The tube is at its full length the moment the crunch field forms.
-        public const double TubeMinBrightness = 0.25;               // The dimmest the tube gets while the crunch field is up, 0..1: its brightness at 0c (as the field forms and as the speed falls away at the end). 0 = fully transparent at rest. It still brightens in a straight line to full at TubeFullBrightnessC.
-        public const double TubeFadeOutSeconds = 1.375;             // The tube shrinks back to the ring, and fades out from the brightness it had, over this long when the field is down.
-        public const double TubeFitMaxFactor = 1.75;                // The tube is lengthened to cover wide parts far from the ring, but never past this x that part's distance from the ring. Parts wider than that stick out.
-        public const double TubeLightIntensity = 2.5;               // Point light at the ring, part of the same effect.
-        public const double TubeLightRangeFactor = 1.25;            // The light reaches this x the craft's length.
-        public const double TubeStretchAmount = 0.025;              // The tube's length pulses with the flicker by up to this share. It only stretches past its measured length, never shrinks below it.
-        public const double TubeFlickerHz = 32.0;                   // How fast the tube and its light waver (roughly flickers per second).
-        public const double TubeFlickerAmount = 0.25;               // How far they waver, 0..1 (0 = steady).
-        public const int TubeHaloShells = 8;                        // Soft layers around the tube that blur its edge; 0 = a hard edge.
-        public const double TubeHaloSpread = 0.5;                   // The outermost soft layer is this much wider than the tube (x the tube's radius).
-        public const double TubeHaloStrength = 0.125;               // How bright the glow is right at the tube's edge, 0..1. It falls off smoothly from there to nothing at the outermost layer.
-        public const double TubeHaloFalloff = 0.5;                  // Width of that falloff as a share of the glow's width: smaller = a tight glow that dies quickly, larger = a flatter, wider haze.
-
-        // ---- Flash (a brief, overwhelming glow at the ring, every time the craft enters or leaves the crunch field) ----
-        public const double FlashRiseSeconds = 0.125;   // The flash reaches full brightness this fast.
-        public const double FlashFadeSeconds = 0.25;    // Then it dies away over this long (fast at first, with a long soft tail).
-        public const double FlashSizeFactor = 2.5;      // The flash's diameter at its start, x the diameter of a sphere around the ring that holds the whole craft.
-        public const double FlashGrowth = 2.0;          // The flash grows by this share of its size as it dies away.
-        public const double FlashStrength = 1.0;        // Peak opacity, 0..1.
-        public const double FlashLightIntensity = 2.5;  // Point light at the flash's peak.
-
-        // ---- Safety ----
-        public const double EngineGraceSeconds = 0.25;  // Engine thrust tolerated this long before the drive aborts.
-
-        // ---- Targeting ----
-        public const double TargetAlignToleranceDeg = 10.0; // How far off the target the craft may be when a crunch starts.
-        public const double TurnAlignToleranceDeg = 2.5;    // Before the second leg: how far the tail may be off the target.
-        public const double TurnSettleRateDegPerSec = 0.5;  // Before the second leg, remain below this rate while aligned.
-        public const double TurnSettleSeconds = 0.5;        // Required time below the rate threshold.
-        public const double MinCrunchSeconds = 0.1;         // No leg is shorter than this.
-        public const double VesselStopDistance = 75000.0;   // Stop this far short of a targeted vessel (m).
-
-        // ---- Turn between the legs (attitude controller) ----
-        public const double TurnProbeSeconds = 0.125;       // Duration of each calibration stage.
-        public const double TurnProbeInput = 0.25;          // Calibration: control input used for the test pulses (0..1).
-        public const double TurnMinAuthority = 1e-4;        // Calibration: below this rad/s^2 per full input, an axis counts as having no torque.
-        public const double TurnMaxRateDegPerSec = 90.0;    // Never turn faster than this.
-        public const double TurnBrakingMargin = 0.75;       // Plan the braking with this fraction of the craft's angular acceleration.
-        public const double TurnRateGain = 1.5;             // Close to the target the turning rate is this x the remaining angle (per second).
-        public const double TurnResponseSeconds = 0.25;     // The rate error is corrected over about this long.
-
-        // ---- Dropout zones ----
-        public const double DropoutFraction = 0.00625;      // Fraction of each body's SOI.
-        public const double MinDropoutAltitude = 100000.0;  // Zones reach at least this far above surface/atmosphere (m).
-        public const double RootBodyDropoutRadii = 2.0;     // Multiplier for Kerbol's dropout radius.
-        public const double DropoutClearance = 1000.0;      // However the dropout sphere is scaled, it stays at least this far above the atmosphere (m).
-        public const double DropoutAltitudeMaxFactor = 20.0; // The Dropout Alt. slider reaches up to this x the body's own dropout altitude (never past its sphere of influence).
-        public const double DropoutAltitudeEditorMax = 5000000.0; // The Dropout Alt. slider's top in the VAB/SPH, where there is no body (m).
-
-        // ---- Arrival ----
-        public const double CaptureSpeedFraction = 0.9875;      // Capture assistance slows the craft to at most this x local escape speed.
-        public const double CaptureSafeAltitude = 50000.0;      // Capture assistance keeps periapsis at least this far above the surface/atmosphere (m).
-        public const double ArrivalSettleSeconds = 0.125;       // Longest wait for KSP to switch the reference body after a crunch.
-        public const double ArrivalDelaySeconds = 0.125;        // Wait this long after the switch before SAS is set and capture assistance starts.
-        public const double ArrivalAimTimeoutSeconds = 30.0;    // After capture assistance is done, give up waiting for the craft to settle retrograde after this long.
-        public const double InterceptApproachSpeed = 200.0;     // Target closing speed for craft intercepts (m/s).
-        public const double InterceptMinSeconds = 30.0;         // Minimum duration of the final approach.
-        public const double InterceptMaxDistance = 1000000.0;   // Farther than this from the target craft (m), the craft is captured by the body instead.
-
-        // ---- Global settings: the defaults used when Settings.cfg does not set them (see CrunchSettings) ----
-        public const bool DefaultAllowWarp = true;              // The spool and long crunches may run under time warp. EXPERIMENTAL.
-        public const bool DefaultAllowNearbyCraft = true;       // A crunch may start, and carry on, with other craft loaded nearby. They are left behind.
-        public const bool DefaultUseTurnController = true;      // Turn between the legs with the MechJeb2-derived attitude controller instead of SAS.
-        public const double DefaultDropoutMultiplier = 1.0;     // Scales every dropout sphere's altitude above its body.
-        public const bool DefaultLooseStart = true;             // Loose Start Conditions: a spool may start inside a dropout sphere, inside an atmosphere, or when the craft is not pointing at the target, and a crunch may start inside a dropout sphere or an atmosphere if it heads out of the dropout sphere (the craft still has to be aligned to start the crunch). The second spool between the legs starts at once, while the craft is still turning, and the second leg waits until it is aligned.
-        public const bool DefaultIgnoreDropout = false;         // Manual mode only: the crunch ignores every dropout sphere, the one it starts in and the target's too, so only the player (or the time set) ends it, and the player risks collisions. A spool still cannot start inside a sphere (unless Loose Start Conditions is on).
-
-        // ---- Player controls (live values; the primary crunch drive copies its craft settings here) ----
-        public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. Manual: the player's own crunch (see below). TwoLeg and OneLeg need a target.
-        public static bool ManualSetSpeed = false;                  // Manual mode: the player sets the average speed (ManualSpeedC). The spool ends by itself at exactly that speed. If not, the speed is whatever the spool reaches.
-        public static bool ManualSetTime = true;                    // Manual mode: the player sets the duration (CrunchSeconds). If not, the crunch has no end: the speed ramps up once and stays there until the player collapses the field or the craft drops out.
-        public static double ManualSpeedC = 2.5;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
-        public static double CrunchSeconds = 60.0;                  // Manual mode: the duration when ManualSetTime is on.
-        public static double PlayerDropoutAltitude = 0.0;           // The player's Dropout Alt. (m above sea level): every dropout sphere reaches at least this high. 0 = the spheres' own altitudes.
-        public static bool Backwards = false;                       // Orientation of the FIRST leg (always forward in Two-Leg mode). The second leg is always backwards.
-        public static bool SasRetrograde = true;                    // On arrival, set SAS to retrograde (only if SAS is on). The craft is never rotated by force. Read live: it may be changed during a crunch.
-        public static bool CaptureAssist = true;                    // On arrival, gradually slow/redirect the velocity until the craft is bound and clear of the surface (or on course to a targeted craft). Read live: it may be changed during a crunch.
-        public static double CaptureRampSeconds = 2.75;             // Duration of the velocity change; 0 applies it instantly.
+        // Speed
+        public const double MinSpeedC = 0.25;
+        public const double MaxSpeedC = 250.0;
+        public const double RampSeconds = 7.5;  // Speed ramp-up/ramp-down duration for a crunch's leg.
+        // Spool
+        public const double SpoolEcPerSecond = 5000.0;  // Default EC cost for one spool second.
+        public const double SpoolRateMinEc = 1000.0;
+        public const double SpoolRateMaxEc = 50000.0;
+        public const double SpoolRateStepEc = 1000.0;
+        public const double MinSpoolSeconds = 5.0;      // Minimum spool duration that permits engagement.
+        public const double MaxSpoolSeconds = 1800.0;   // Spool duration that reaches maximum speed.
+        public const double SpoolDrySeconds = 0.125;    // Minimum unsupplied-draw time before a spool ends.
+        public const double GlowSpoolSeconds = 5.0;     // Spool duration needed for full emissive glow.
+        // Time Warp
+        public const double WarpMinLegSeconds = 45.0;       // Minimum crunch leg duration permitted for time warp.
+        public const double WarpFinalSeconds = 5.0;         // Time to end time warp before a leg ends.
+        public const double WarpSpoolFinalSeconds = 10.0;   // Time to end time warp before a spool ends.
+        public const double WarpStepSeconds = 2.5;          // Real-time duration of a time warp step.
+        // Sounds
+        public const double CueHoldSeconds = 6.4;           // Hold duration for one-shot sound cues.
+        public const double SpoolPitchRiseSeconds = 2.5;
+        public const double SpoolPitchFallSeconds = 1.5;
+        public const double SpoolPitchStart = 0.5;
+        public const double SpoolPitchFloor = 0.25;
+        // Glow
+        public const double GlowFadeSeconds = 5.0;
+        // FX Tube
+        public const double TubeRadiusFactor = 1.125;
+        public const double TubeCurve = 1.0;                // 0 = cylinder, 1 = ellipsoid
+        public const double TubeFadeStart = 0.0;            // 0 = ring bounds, 1 = craft bounds, 2 = no fade
+        public const double TubeBurstFadeStart = 0.0;
+        public const int TubeSegments = 36;
+        public const int TubeRings = 18;
+        public const double TubeFullBrightnessC = 1.0;
+        public const double TubeMinBrightness = 0.25;
+        public const double TubeFadeOutSeconds = 1.375;
+        public const double TubeFitMaxFactor = 1.75;        // Maximum tube length multiplier for off-axis parts.
+        public const double TubeLightIntensity = 2.5;
+        public const double TubeLightRangeFactor = 1.25;
+        public const double TubeStretchAmount = 0.025;
+        public const double TubeFlickerHz = 32.0;
+        public const double TubeFlickerAmount = 0.25;       // 0 = no flicker, 1 = complete flicker
+        public const int TubeHaloShells = 8;                // Number of bloom shells.
+        public const double TubeHaloSpread = 0.5;           // Bloom spread multiplier from tube radius.
+        public const double TubeHaloStrength = 0.125;       // Bloom opacity from 0 to 1.
+        public const double TubeHaloFalloff = 0.5;          // Bloom falloff relative to width.
+        // Flash
+        public const double FlashRiseSeconds = 0.125;
+        public const double FlashFadeSeconds = 0.25;
+        public const double FlashSizeFactor = 2.5;
+        public const double FlashGrowth = 2.0;
+        public const double FlashStrength = 1.0;        // Peak flash opacity from 0 to 1.
+        public const double FlashLightIntensity = 2.5;
+        // Safety
+        public const double EngineGraceSeconds = 0.25;
+        // Targeting
+        public const double TargetAlignToleranceDeg = 10.0;
+        public const double TurnAlignToleranceDeg = 2.5;
+        public const double TurnSettleRateDegPerSec = 0.5;
+        public const double TurnSettleSeconds = 0.5;
+        public const double MinCrunchSeconds = 0.1;
+        public const double VesselStopDistance = 75000.0;
+        // Turn Controller
+        public const double TurnProbeSeconds = 0.125;
+        public const double TurnProbeInput = 0.25;
+        public const double TurnMinAuthority = 1e-4;        // Minimum angular acceleration per full control input.
+        public const double TurnMaxRateDegPerSec = 90.0;    // Maximum turn rate in degrees per second.
+        public const double TurnBrakingMargin = 0.75;       // Angular acceleration multiplier used for braking.
+        public const double TurnRateGain = 1.5;             // Turn-rate multiplier for remaining angle.
+        public const double TurnResponseSeconds = 0.25;     // Turn controller rate correction time.
+        // Dropout Spheres
+        public const double DropoutFraction = 0.00625;              // Radius fraction of the body's SOI.
+        public const double MinDropoutAltitude = 100000.0;
+        public const double RootBodyDropoutRadii = 2.0;             // Kerbol zone radius multiplier.
+        public const double DropoutClearance = 1000.0;              // Clearance above the atmosphere.
+        public const double DropoutAltitudeMaxFactor = 20.0;        // Maximum dropout altitude slider multiplier.
+        public const double DropoutAltitudeEditorMax = 5000000.0;   // Maximum VAB/SPH dropout altitude in meters.
+        // Arrival
+        public const double CaptureSpeedFraction = 0.9875;
+        public const double CaptureSafeAltitude = 50000.0;
+        public const double ArrivalSettleSeconds = 0.125;       // Reference-body switch settle time.
+        public const double ArrivalDelaySeconds = 0.125;        // Delay before SAS and capture assistance start.
+        public const double ArrivalAimTimeoutSeconds = 45.0;    // Retrograde settling timeout after capture assistance.
+        public const double InterceptApproachSpeed = 200.0;
+        public const double InterceptMinSeconds = 30.0;
+        public const double InterceptMaxDistance = 1000000.0;
+        // Global Settings
+        public const bool DefaultAllowWarp = true;
+        public const bool DefaultAllowNearbyCraft = true;
+        public const bool DefaultUseTurnController = true;
+        public const double DefaultDropoutMultiplier = 1.0;
+        public const bool DefaultLooseStart = true;
+        public const bool DefaultIgnoreDropout = false;
+        // Player Controls
+        public static TravelMode Mode = TravelMode.TwoLeg;
+        public static bool ManualSetSpeed = false;
+        public static bool ManualSetTime = true;
+        public static double ManualSpeedC = 2.5;
+        public static double CrunchSeconds = 60.0;
+        public static double PlayerDropoutAltitude = 0.0;
+        public static bool Backwards = false;
+        public static bool SasRetrograde = true;
+        public static bool CaptureAssist = true;
+        public static double CaptureRampSeconds = 2.75;
     }
 }

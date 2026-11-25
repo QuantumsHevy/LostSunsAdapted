@@ -1,13 +1,11 @@
 using System;
 using CrunchDrives.Core;
 using Xunit;
-
 public class CrunchMathTests
 {
     [Fact]
     public void Duna_half_trip_at_1c_is_about_17_seconds()
         => Assert.InRange(CrunchMath.SecondsForDistance(5e9, 1.0), 16, 18);
-
     [Fact]
     public void Fast_segment_hits_sphere_between_ticks()
     {
@@ -15,13 +13,9 @@ public class CrunchMathTests
         Assert.NotNull(hit);
         Assert.InRange(hit.Value, 0.44, 0.46);
     }
-
     [Fact]
     public void Segment_missing_sphere_returns_null()
         => Assert.Null(CrunchMath.SweepEntry(new Vec3d(-1e7, 5e6, 0), new Vec3d(1e7, 5e6, 0), new Vec3d(0, 0, 0), 1e6));
-
-    // ---- Trapezoid curve ----
-
     static double TrapezoidTotal(double averageC, double duration, double ramp, out bool allNonNegative)
     {
         const double dt = 0.02;
@@ -37,7 +31,6 @@ public class CrunchMathTests
         }
         return total;
     }
-
     [Theory]
     [InlineData(0.001)]
     [InlineData(0.05)]
@@ -50,41 +43,36 @@ public class CrunchMathTests
         Assert.InRange(total / expected, 0.999999, 1.000001);
         Assert.True(nonNegative);
     }
-
     [Fact]
     public void Trapezoid_starts_and_ends_at_rest()
     {
         Assert.Equal(0.0, CrunchMath.TrapezoidSpeedFactor(0.0, 0.1), 9);
         Assert.Equal(0.0, CrunchMath.TrapezoidSpeedFactor(1.0, 0.1), 9);
     }
-
     [Fact]
     public void Trapezoid_cruise_speed_is_the_peak()
         => Assert.Equal(1.0 / 0.9, CrunchMath.TrapezoidSpeedFactor(0.5, 0.1), 9);
-
     [Fact]
     public void Trapezoid_peak_factor_matches_cruise_speed()
         => Assert.Equal(CrunchMath.TrapezoidPeakFactor(0.1), CrunchMath.TrapezoidSpeedFactor(0.5, 0.1), 9);
-
     [Fact]
     public void Trapezoid_ramps_rise_and_fall_smoothly()
     {
         double previous = 0.0;
-        for (int i = 0; i <= 100; i++)               // Ramp up over the first 10% of the crunch.
+        for (int i = 0; i <= 100; i++)
         {
             double f = CrunchMath.TrapezoidSpeedFactor(i / 1000.0, 0.1);
             Assert.True(f >= previous - 1e-9);
             previous = f;
         }
         previous = CrunchMath.TrapezoidSpeedFactor(0.9, 0.1);
-        for (int i = 1; i <= 100; i++)               // Ramp down over the last 10%.
+        for (int i = 1; i <= 100; i++)
         {
             double f = CrunchMath.TrapezoidSpeedFactor(0.9 + i / 1000.0, 0.1);
             Assert.True(f <= previous + 1e-9);
             previous = f;
         }
     }
-
     [Fact]
     public void Trapezoid_spends_most_of_the_crunch_near_peak_speed()
     {
@@ -94,7 +82,6 @@ public class CrunchMathTests
             if (CrunchMath.TrapezoidSpeedFactor((i + 0.5) / 1000.0, 0.1) >= 0.99 * peak) near++;
         Assert.True(near >= 800);
     }
-
     [Fact]
     public void Trapezoid_speed_factor_matches_per_tick_displacement()
     {
@@ -104,28 +91,21 @@ public class CrunchMathTests
         double expected = CrunchMath.TrapezoidSpeedFactor((t + dt / 2) / duration, ramp);
         Assert.InRange(factor / expected, 0.999, 1.001);
     }
-
     [Fact]
     public void Trapezoid_displacement_is_zero_after_the_duration()
         => Assert.Equal(0.0, CrunchMath.TrapezoidDisplacementPerTick(225.0, 10.0, 0.02, 10.0, 0.1), 6);
-
-    // ---- Ramps and the peak cap ----
-
     [Fact]
     public void A_ramp_is_the_ramp_seconds_share_of_the_leg_but_never_more_than_half()
     {
         Assert.Equal(0.05, CrunchMath.RampFraction(100.0, 5.0), 9);
         Assert.Equal(0.5, CrunchMath.RampFraction(4.0, 5.0), 9);
     }
-
     [Fact]
     public void A_very_long_leg_averages_almost_its_peak_speed()
         => Assert.InRange(CrunchMath.MaxAverageForPeak(250.0, 3.8e16, 0.0, 5.0), 249.99, 250.0);
-
     [Fact]
     public void A_short_leg_averages_half_its_peak_speed()
         => Assert.Equal(125.0, CrunchMath.MaxAverageForPeak(250.0, 2.5e10, 0.0, 5.0), 9);
-
     [Theory]
     [InlineData(2.5e10)]
     [InlineData(3e11)]
@@ -139,46 +119,36 @@ public class CrunchMathTests
         double ramp = CrunchMath.RampFraction(duration, 5.0);
         Assert.InRange(average * CrunchMath.TrapezoidPeakFactor(ramp), 249.999, 250.001);
     }
-
     [Fact]
     public void A_fixed_time_leg_uses_its_own_ramp_share()
     {
         Assert.Equal(237.5, CrunchMath.MaxAverageForPeak(250.0, 0.0, 100.0, 5.0), 9);
         Assert.Equal(125.0, CrunchMath.MaxAverageForPeak(250.0, 0.0, 4.0, 5.0), 9);
     }
-
-    // ---- Spool ----
-    // Reference numbers: 2.5c for the shortest spool (5 s), 250c for a full spool (1800 s), straight line in between.
-
     const double MinC = 2.5;
     const double MaxC = 250.0;
     const double MinSpool = 5.0;
     const double FullSpool = 1800.0;
-
     static double Coef(double seconds) => CrunchMath.SpoolCoefficient(seconds, MinC, MaxC, MinSpool, FullSpool);
-
     [Fact]
     public void A_spool_no_longer_than_the_minimum_gives_the_slowest_speed()
     {
         Assert.Equal(2.5, Coef(0.0), 9);
         Assert.Equal(2.5, Coef(5.0), 9);
     }
-
     [Fact]
     public void A_full_spool_gives_the_top_speed_and_a_longer_one_does_not_add_to_it()
     {
         Assert.Equal(250.0, Coef(1800.0), 9);
         Assert.Equal(250.0, Coef(5000.0), 9);
     }
-
     [Fact]
     public void The_coefficient_rises_in_a_straight_line_with_the_spool()
     {
-        Assert.InRange(Coef(300.0), 43.1, 43.3);                               // Five minutes: about 43c.
-        Assert.InRange(Coef(168.2), 24.9, 25.1);                              // 25c, the in-system speed, takes about 168 s.
-        Assert.Equal(0.5 * (MinC + MaxC), Coef(902.5), 6);                     // Halfway through the spool: halfway between the speeds.
+        Assert.InRange(Coef(300.0), 43.1, 43.3);
+        Assert.InRange(Coef(168.2), 24.9, 25.1);
+        Assert.Equal(0.5 * (MinC + MaxC), Coef(902.5), 6);
     }
-
     [Fact]
     public void A_longer_spool_never_gives_a_slower_speed()
     {
@@ -190,37 +160,28 @@ public class CrunchMathTests
             previous = c;
         }
     }
-
     [Fact]
     public void A_spool_with_no_room_to_rise_steps_from_the_minimum_to_the_maximum()
     {
         Assert.Equal(2.5, CrunchMath.SpoolCoefficient(4.0, MinC, MaxC, 5.0, 5.0), 9);
         Assert.Equal(250.0, CrunchMath.SpoolCoefficient(6.0, MinC, MaxC, 5.0, 5.0), 9);
     }
-
     [Fact]
     public void A_leg_can_use_the_whole_spool_when_it_is_long_and_not_too_close()
         => Assert.Equal(100.0, CrunchMath.LegSpeed(100.0, 250.0, 5.0, 1e13, 0.0, 0.1), 9);
-
     [Fact]
     public void A_short_leg_is_held_to_half_the_peak_speed()
         => Assert.Equal(125.0, CrunchMath.LegSpeed(250.0, 250.0, 5.0, 2.5e10, 0.0, 0.1), 9);
-
     [Fact]
     public void A_target_closer_than_the_shortest_leg_lowers_the_speed()
     {
-        // 1e9 m must take at least 0.1 s: 1e9 / (c x 0.1) = 33.4c.
         double c = CrunchMath.LegSpeed(250.0, 250.0, 5.0, 1e9, 0.0, 0.1);
         Assert.InRange(c, 33.3, 33.4);
         Assert.InRange(CrunchMath.SecondsForDistance(1e9, c), 0.0999, 0.1001);
     }
-
     [Fact]
     public void A_fixed_time_leg_ignores_the_shortest_leg_rule()
         => Assert.Equal(237.5, CrunchMath.LegSpeed(250.0, 250.0, 5.0, 0.0, 100.0, 0.1), 9);
-
-    // ---- Effects: tube brightness and field pitch ----
-
     [Fact]
     public void The_tube_is_dark_at_rest()
     {
@@ -228,7 +189,6 @@ public class CrunchMathTests
         Assert.Equal(0.0, CrunchMath.SpeedIntensity(-3.0, 1.0), 9);
         Assert.Equal(0.0, CrunchMath.SpeedIntensity(double.NaN, 1.0), 9);
     }
-
     [Fact]
     public void The_tube_brightens_in_a_straight_line_up_to_full_at_1c()
     {
@@ -236,28 +196,24 @@ public class CrunchMathTests
         Assert.Equal(0.5, CrunchMath.SpeedIntensity(0.5, 1.0), 9);
         Assert.Equal(1.0, CrunchMath.SpeedIntensity(1.0, 1.0), 9);
     }
-
     [Fact]
     public void The_tube_stays_at_full_brightness_above_1c()
     {
         Assert.Equal(1.0, CrunchMath.SpeedIntensity(1.5, 1.0), 9);
         Assert.Equal(1.0, CrunchMath.SpeedIntensity(250.0, 1.0), 9);
     }
-
     [Fact]
     public void The_tube_reaches_full_brightness_at_the_speed_it_is_given()
     {
         Assert.Equal(0.5, CrunchMath.SpeedIntensity(2.0, 4.0), 9);
         Assert.Equal(1.0, CrunchMath.SpeedIntensity(4.0, 4.0), 9);
     }
-
     [Fact]
     public void Any_movement_is_full_brightness_when_no_full_speed_is_set()
     {
         Assert.Equal(1.0, CrunchMath.SpeedIntensity(0.01, 0.0), 9);
         Assert.Equal(0.0, CrunchMath.SpeedIntensity(0.0, 0.0), 9);
     }
-
     [Fact]
     public void A_faster_crunch_is_never_dimmer()
     {
@@ -269,7 +225,6 @@ public class CrunchMathTests
             previous = b;
         }
     }
-
     [Fact]
     public void The_field_is_at_the_lowest_pitch_at_rest_and_the_highest_at_the_drives_top_speed()
     {
@@ -277,15 +232,12 @@ public class CrunchMathTests
         Assert.Equal(1.0, CrunchMath.SpeedPitchFraction(250.0, 250.0), 9);
         Assert.Equal(1.0, CrunchMath.SpeedPitchFraction(900.0, 250.0), 9);
     }
-
     [Fact]
     public void Sublight_speeds_are_audible_in_the_pitch_of_a_250c_drive()
         => Assert.InRange(CrunchMath.SpeedPitchFraction(1.0, 250.0), 0.12, 0.13);
-
     [Fact]
     public void The_same_speed_is_higher_pitched_on_a_slower_drive()
         => Assert.True(CrunchMath.SpeedPitchFraction(1.0, 2.5) > CrunchMath.SpeedPitchFraction(1.0, 250.0));
-
     [Fact]
     public void A_faster_crunch_is_never_lower_pitched()
     {
@@ -297,13 +249,9 @@ public class CrunchMathTests
             previous = f;
         }
     }
-
     [Fact]
     public void A_drive_with_no_top_speed_has_no_pitch_change()
         => Assert.Equal(0.0, CrunchMath.SpeedPitchFraction(5.0, 0.0), 9);
-
-    // ---- Tube of light: its shape ----
-
     [Fact]
     public void A_full_curve_is_the_ellipse()
     {
@@ -311,21 +259,18 @@ public class CrunchMathTests
         Assert.Equal(0.8, CrunchMath.TubeRadiusScale(0.6, 1.0), 9);
         Assert.Equal(0.0, CrunchMath.TubeRadiusScale(1.0, 1.0), 9);
     }
-
     [Fact]
     public void No_curve_is_a_straight_tube()
     {
         for (int i = 0; i <= 10; i++)
             Assert.Equal(1.0, CrunchMath.TubeRadiusScale(i / 10.0, 0.0), 9);
     }
-
     [Fact]
     public void A_half_curve_is_halfway_between_straight_and_the_ellipse()
     {
         Assert.Equal(0.9, CrunchMath.TubeRadiusScale(0.6, 0.5), 9);
         Assert.Equal(0.5, CrunchMath.TubeRadiusScale(1.0, 0.5), 9);
     }
-
     [Fact]
     public void A_straighter_tube_is_never_narrower()
     {
@@ -335,7 +280,6 @@ public class CrunchMathTests
             Assert.True(CrunchMath.TubeRadiusScale(u, 0.25) >= CrunchMath.TubeRadiusScale(u, 0.75) - 1e-12);
         }
     }
-
     [Fact]
     public void The_tube_is_opaque_up_to_the_solid_distance_and_fades_to_nothing_at_its_end()
     {
@@ -344,14 +288,12 @@ public class CrunchMathTests
         Assert.Equal(0.5, CrunchMath.TubeEndAlpha(8.0, 6.0, 10.0), 9);
         Assert.Equal(0.0, CrunchMath.TubeEndAlpha(10.0, 6.0, 10.0), 9);
     }
-
     [Fact]
     public void A_solid_distance_at_the_end_leaves_the_tube_opaque_all_the_way()
     {
         Assert.Equal(1.0, CrunchMath.TubeEndAlpha(9.99, 10.0, 10.0), 9);
         Assert.Equal(1.0, CrunchMath.TubeEndAlpha(10.0, 10.0, 10.0), 9);
     }
-
     [Fact]
     public void The_fade_starts_at_the_ring_the_craft_s_reach_or_never()
     {
@@ -361,18 +303,15 @@ public class CrunchMathTests
         Assert.Equal(8.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 1.5), 9);
         Assert.Equal(10.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 2.0), 9);
     }
-
     [Fact]
     public void The_fade_start_setting_is_kept_between_0_and_2()
     {
         Assert.Equal(0.0, CrunchMath.TubeSolidDistance(6.0, 10.0, -1.0), 9);
         Assert.Equal(10.0, CrunchMath.TubeSolidDistance(6.0, 10.0, 5.0), 9);
     }
-
     [Fact]
     public void A_craft_reaching_the_tip_still_leaves_the_tip_to_fade_at_a_setting_of_1()
         => Assert.Equal(9.5, CrunchMath.TubeSolidDistance(12.0, 10.0, 1.0), 9);
-
     [Fact]
     public void The_fade_start_never_moves_the_solid_distance_closer_to_the_ring_as_it_rises()
     {
@@ -384,7 +323,6 @@ public class CrunchMathTests
             previous = d;
         }
     }
-
     [Fact]
     public void With_a_full_curve_the_tube_length_fits_the_ellipse()
     {
@@ -392,7 +330,6 @@ public class CrunchMathTests
         Assert.Equal(10.0 / 0.8 * 1.05, length, 9);
         Assert.False(capped);
     }
-
     [Fact]
     public void With_no_curve_a_part_inside_the_radius_needs_no_extra_length()
     {
@@ -400,19 +337,17 @@ public class CrunchMathTests
         Assert.Equal(10.0 * 1.05, length, 9);
         Assert.False(capped);
     }
-
     [Fact]
     public void A_straighter_tube_never_needs_to_be_longer()
     {
         double previous = double.MaxValue;
         for (int i = 0; i <= 20; i++)
         {
-            double length = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 1.0 - i * 0.05, out bool _);   // Straighter with every step.
+            double length = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 1.0 - i * 0.05, out bool _);
             Assert.True(length <= previous + 1e-9);
             previous = length;
         }
     }
-
     [Fact]
     public void A_straighter_tube_needs_less_length_for_a_wide_part()
     {
@@ -420,7 +355,6 @@ public class CrunchMathTests
         double half = CrunchMath.TubeRequiredLength(10.0, 0.9, 1.0, 100.0, 0.5, out bool _);
         Assert.True(half < bubble);
     }
-
     [Fact]
     public void A_part_far_too_wide_for_the_tube_is_capped_and_left_poking_out()
     {
@@ -428,37 +362,29 @@ public class CrunchMathTests
         Assert.Equal(17.5, length, 9);
         Assert.True(capped);
     }
-
     [Fact]
     public void A_part_behind_the_ring_needs_no_length()
         => Assert.Equal(0.0, CrunchMath.TubeRequiredLength(-3.0, 0.5, 1.0, 1.75, 1.0, out bool _), 9);
-
-    // ---- Dropout zones: starting inside one ----
-
     [Fact]
     public void A_craft_inside_a_zone_heading_outward_moves_away_from_its_centre()
         => Assert.True(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(1, 0, 0), new Vec3d(0, 0, 0)));
-
     [Fact]
     public void A_craft_inside_a_zone_heading_inward_does_not()
         => Assert.False(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(-1, 0, 0), new Vec3d(0, 0, 0)));
-
     [Fact]
     public void A_craft_heading_sideways_counts_as_moving_away()
         => Assert.True(CrunchMath.MovesAwayFrom(new Vec3d(5e5, 0, 0), new Vec3d(0, 1, 0), new Vec3d(0, 0, 0)));
-
     [Fact]
     public void A_path_that_leaves_a_zone_it_started_in_never_comes_back_in()
     {
         var center = new Vec3d(0, 0, 0);
         var heading = new Vec3d(0.6, 0.8, 0);
-        var start = new Vec3d(3e5, 4e5 * 0.5, 0);   // Inside a 1e6 m zone.
+        var start = new Vec3d(3e5, 4e5 * 0.5, 0);
         Assert.True(CrunchMath.MovesAwayFrom(start, heading, center));
-        Assert.Equal(0.0, CrunchMath.SweepEntry(start, start + heading * 1e5, center, 1e6));   // Starts inside: the scan would end the crunch at once.
+        Assert.Equal(0.0, CrunchMath.SweepEntry(start, start + heading * 1e5, center, 1e6));
         var outside = start + heading * 2e6;
         Assert.Null(CrunchMath.SweepEntry(outside, outside + heading * 1e9, center, 1e6));
     }
-
     [Fact]
     public void A_path_heading_deeper_into_a_zone_is_a_hit_at_once()
     {
@@ -467,9 +393,6 @@ public class CrunchMathTests
         Assert.False(CrunchMath.MovesAwayFrom(start, new Vec3d(-1, 0, 0), center));
         Assert.Equal(0.0, CrunchMath.SweepEntry(start, new Vec3d(-1e9, 0, 0), center, 1e6));
     }
-
-    // ---- Open-ended speed curve (Manual mode with no duration set) ----
-
     [Fact]
     public void An_open_ended_crunch_starts_at_rest_and_cruises_after_the_ramp()
     {
@@ -478,7 +401,6 @@ public class CrunchMathTests
         Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(7.5, 7.5), 9);
         Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(1000.0, 7.5), 9);
     }
-
     [Fact]
     public void An_open_ended_crunch_never_slows_down_or_stops_on_its_own()
     {
@@ -491,22 +413,18 @@ public class CrunchMathTests
         }
         Assert.Equal(1.0, previous, 9);
     }
-
     [Fact]
     public void An_open_ended_crunch_with_no_ramp_cruises_at_once()
         => Assert.Equal(1.0, CrunchMath.RampUpSpeedFactor(0.0, 0.0), 9);
-
     [Fact]
     public void The_ramp_up_covers_half_the_distance_of_cruising_through_it()
     {
         double d = CrunchMath.RampUpDisplacementPerTick(10.0, 0.0, 7.5, 7.5);
         Assert.Equal(0.5 * 7.5 * 10.0 * CrunchMath.C, d, 3);
     }
-
     [Fact]
     public void After_the_ramp_an_open_ended_crunch_covers_its_cruise_speed_every_second()
         => Assert.Equal(10.0 * CrunchMath.C, CrunchMath.RampUpDisplacementPerTick(10.0, 100.0, 1.0, 7.5), 3);
-
     [Fact]
     public void Open_ended_ticks_add_up_to_the_whole_distance()
     {
@@ -516,7 +434,6 @@ public class CrunchMathTests
         double expected = cruise * CrunchMath.C * (60.0 - 0.5 * ramp);
         Assert.InRange(total / expected, 0.999999, 1.000001);
     }
-
     [Fact]
     public void An_open_ended_tick_matches_the_speed_factor()
     {
@@ -525,9 +442,6 @@ public class CrunchMathTests
         double expected = CrunchMath.C * dt * CrunchMath.RampUpSpeedFactor(t + dt / 2, 7.5);
         Assert.InRange(perTick / expected, 0.999, 1.001);
     }
-
-    // ---- Manual mode: filling in values ----
-
     [Fact]
     public void A_set_speed_needs_the_spool_that_buys_it()
     {
@@ -535,14 +449,12 @@ public class CrunchMathTests
         Assert.Equal(1800.0, CrunchMath.SpoolSecondsForCoefficient(250.0, 0.25, 250.0, 5.0, 1800.0), 9);
         Assert.Equal(902.5, CrunchMath.SpoolSecondsForCoefficient(0.5 * (0.25 + 250.0), 0.25, 250.0, 5.0, 1800.0), 6);
     }
-
     [Fact]
     public void A_set_speed_outside_the_drives_range_needs_the_shortest_or_the_full_spool()
     {
         Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(0.01, 0.25, 250.0, 5.0, 1800.0), 9);
         Assert.Equal(1800.0, CrunchMath.SpoolSecondsForCoefficient(900.0, 0.25, 250.0, 5.0, 1800.0), 9);
     }
-
     [Theory]
     [InlineData(0.25)]
     [InlineData(1.0)]
@@ -555,110 +467,83 @@ public class CrunchMathTests
         double seconds = CrunchMath.SpoolSecondsForCoefficient(c, 0.25, 250.0, 5.0, 1800.0);
         Assert.Equal(c, CrunchMath.SpoolCoefficient(seconds, 0.25, 250.0, 5.0, 1800.0), 9);
     }
-
     [Fact]
     public void A_drive_with_no_room_to_rise_needs_the_full_spool_for_anything_above_its_minimum()
     {
         Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(2.5, 2.5, 2.5, 5.0, 5.0), 9);
         Assert.Equal(5.0, CrunchMath.SpoolSecondsForCoefficient(3.0, 2.5, 2.5, 5.0, 5.0), 9);
     }
-
     [Fact]
     public void A_leg_that_is_not_capped_takes_its_distance_over_its_speed()
         => Assert.Equal(CrunchMath.SecondsForDistance(1e12, 10.0), CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 1e12, 0.1), 6);
-
     [Fact]
     public void A_leg_whose_speed_would_pass_the_peak_cap_is_flown_slower_and_takes_longer()
     {
-        double meters = 2.5e10;   // A very short leg at 250c: it can only average half the peak.
+        double meters = 2.5e10;
         double seconds = CrunchMath.SecondsToCover(250.0, 250.0, 7.5, meters, 0.1);
         Assert.Equal(CrunchMath.SecondsForDistance(meters, 125.0), seconds, 6);
     }
-
     [Fact]
     public void Nothing_to_cover_takes_no_time()
     {
         Assert.Equal(0.0, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 0.0, 0.1), 9);
         Assert.Equal(0.0, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, -5.0, 0.1), 9);
     }
-
     [Fact]
     public void Halfway_takes_half_as_long_as_the_whole_way_when_neither_is_capped()
         => Assert.Equal(0.5, CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 5e12, 0.1) / CrunchMath.SecondsToCover(10.0, 250.0, 7.5, 1e13, 0.1), 9);
-
-    // ---- Engage-time check of the path ahead ----
-
     [Fact]
     public void The_first_stretch_is_the_distance_covered_while_ramping_up()
         => Assert.Equal(2.5 * CrunchMath.C * 0.5 * 10.0, CrunchMath.FirstStretchMeters(2.5, 10.0, 1000.0), 3);
-
     [Fact]
     public void The_first_stretch_is_never_shorter_than_the_minimum()
     {
         Assert.Equal(1000.0, CrunchMath.FirstStretchMeters(0.0, 10.0, 1000.0), 9);
         Assert.Equal(1000.0, CrunchMath.FirstStretchMeters(2.5, 0.0, 1000.0), 9);
     }
-
     [Fact]
     public void A_sphere_the_first_stretch_clips_is_found_by_the_sweep()
     {
-        // The craft sits just outside a sphere and its heading grazes the edge: the first 34 km already enter it.
         var centre = new Vec3d(0.0, 0.0, 100.0);
         double stretch = CrunchMath.FirstStretchMeters(2.5, 10.0, 1000.0);
         var hit = CrunchMath.SweepEntry(new Vec3d(0.0, 0.0, 0.0), new Vec3d(0.0, 0.0, stretch), centre, 50.0);
         Assert.True(hit.HasValue);
     }
-
-    // ---- Part info ----
-
     [Fact]
     public void The_fastest_full_charge_is_its_cost_over_the_highest_draw()
         => Assert.Equal(180.0, CrunchMath.MinChargeSeconds(1800.0 * 5000.0, 50000.0), 9);
-
     [Fact]
     public void A_drive_with_no_draw_range_has_no_minimum_time_to_report()
     {
         Assert.Equal(0.0, CrunchMath.MinChargeSeconds(9e6, 0.0), 9);
         Assert.Equal(0.0, CrunchMath.MinChargeSeconds(-5.0, 50000.0), 9);
     }
-
-    // ---- Arrival ----
-
     [Fact]
     public void Kerbin_escape_speed_at_its_dropout_edge_is_about_2_km_per_second()
         => Assert.InRange(CrunchMath.EscapeSpeed(3.5316e12, 1.68e6), 2040.0, 2060.0);
-
     [Fact]
     public void Capture_assistance_limits_fast_arrivals_to_a_fraction_of_escape_speed()
     {
         double escape = CrunchMath.EscapeSpeed(3.5316e12, 1.68e6);
         Assert.Equal(0.9 * escape, CrunchMath.CappedArrivalSpeed(20000.0, 3.5316e12, 1.68e6, 0.9), 6);
     }
-
     [Fact]
     public void Capture_assistance_leaves_slow_arrivals_alone()
         => Assert.Equal(500.0, CrunchMath.CappedArrivalSpeed(500.0, 3.5316e12, 1.68e6, 0.9), 9);
-
-    // ---- Capture assistance ----
-
-    const double Mu = 3.5316e12;   // Kerbin
-    const double R = 1.68e6;       // Its dropout edge
-
+    const double Mu = 3.5316e12;
+    const double R = 1.68e6;
     [Fact]
     public void Circular_orbit_has_its_periapsis_at_the_current_radius()
     {
         double v = Math.Sqrt(Mu / R);
-        // Exactly circular makes the eccentricity term pure rounding noise, so compare to a relative tolerance.
         Assert.InRange(CrunchMath.PeriapsisRadius(Mu, R, v, R * v) / R, 1.0 - 1e-6, 1.0 + 1e-6);
     }
-
     [Fact]
     public void Sideways_and_faster_than_circular_puts_periapsis_at_the_current_radius()
     {
         double v = 1.2 * Math.Sqrt(Mu / R);
         Assert.Equal(R, CrunchMath.PeriapsisRadius(Mu, R, v, R * v), 3);
     }
-
     [Fact]
     public void Sideways_and_slower_than_circular_puts_periapsis_below_the_current_radius()
     {
@@ -666,11 +551,9 @@ public class CrunchMathTests
         double nu = v * v * R / Mu;
         Assert.Equal(R * nu / (2.0 - nu), CrunchMath.PeriapsisRadius(Mu, R, v, R * v), 3);
     }
-
     [Fact]
     public void A_dead_radial_plunge_has_a_periapsis_at_the_center()
         => Assert.Equal(0.0, CrunchMath.PeriapsisRadius(Mu, R, 5000.0, 0.0), 6);
-
     [Fact]
     public void Min_speed_for_periapsis_gives_exactly_that_periapsis()
     {
@@ -679,65 +562,48 @@ public class CrunchMathTests
         Assert.InRange(v, 1.0, Math.Sqrt(Mu / R));
         Assert.Equal(rp, CrunchMath.PeriapsisRadius(Mu, R, v, R * v), 3);
     }
-
     [Fact]
     public void Min_speed_for_a_periapsis_at_or_above_the_radius_is_zero()
     {
         Assert.Equal(0.0, CrunchMath.MinSpeedForPeriapsis(Mu, R, R), 9);
         Assert.Equal(0.0, CrunchMath.MinSpeedForPeriapsis(Mu, R, 2.0 * R), 9);
     }
-
-    // ---- Dropout zones ----
-
     [Fact]
     public void Moho_dropout_zone_sits_above_the_surface()
         => Assert.Equal(350000.0, CrunchMath.DropoutRadius(9646663.0, 250000.0, 0.0, 0.02, 100000.0, 3.0), 3);
-
     [Fact]
     public void Laythe_dropout_zone_clears_the_atmosphere()
         => Assert.Equal(650000.0, CrunchMath.DropoutRadius(3723645.0, 500000.0, 50000.0, 0.02, 100000.0, 3.0), 3);
-
     [Fact]
     public void Large_soi_uses_the_soi_fraction()
         => Assert.InRange(CrunchMath.DropoutRadius(84159286.0, 600000.0, 70000.0, 0.02, 100000.0, 3.0), 1.68e6, 1.69e6);
-
     [Fact]
     public void Dropout_zone_never_exceeds_the_soi()
         => Assert.Equal(50000.0, CrunchMath.DropoutRadius(50000.0, 10000.0, 0.0, 0.02, 100000.0, 3.0), 3);
-
     [Fact]
     public void Root_body_uses_a_multiple_of_its_radius()
         => Assert.Equal(3.0 * 261600000.0, CrunchMath.DropoutRadius(double.PositiveInfinity, 261600000.0, 0.0, 0.02, 100000.0, 3.0), 3);
-
-    // ---- Attitude control and intercepts ----
-
     [Fact]
     public void Turn_rate_limit_follows_the_square_root_law_far_from_the_target()
         => Assert.Equal(Math.Sqrt(2.0 * 0.5 * 0.2 * 3.0), CrunchMath.TurnRateLimit(0.2, 3.0, 0.5, 10.0, 100.0), 9);
-
     [Fact]
     public void Turn_rate_limit_is_linear_close_to_the_target()
         => Assert.Equal(0.01, CrunchMath.TurnRateLimit(0.2, 0.01, 0.5, 10.0, 1.0), 9);
-
     [Fact]
     public void Turn_rate_limit_never_exceeds_the_maximum_rate()
         => Assert.Equal(0.3, CrunchMath.TurnRateLimit(50.0, 3.0, 0.5, 0.3, 100.0), 9);
-
     [Fact]
     public void Turn_rate_limit_is_zero_with_no_error_or_no_authority()
     {
         Assert.Equal(0.0, CrunchMath.TurnRateLimit(0.2, 0.0, 0.5, 1.0, 1.0), 9);
         Assert.Equal(0.0, CrunchMath.TurnRateLimit(0.0, 1.0, 0.5, 1.0, 1.0), 9);
     }
-
     [Fact]
     public void Intercept_speed_is_the_approach_speed_when_far()
         => Assert.Equal(200.0, CrunchMath.InterceptSpeed(75000.0, 200.0, 30.0), 9);
-
     [Fact]
     public void Intercept_speed_slows_down_when_close()
         => Assert.Equal(10.0, CrunchMath.InterceptSpeed(300.0, 200.0, 30.0), 9);
-
     [Fact]
     public void The_tube_never_drops_below_its_minimum_brightness_while_the_field_is_up()
     {
@@ -745,44 +611,36 @@ public class CrunchMathTests
         Assert.Equal(0.125, CrunchMath.TubeBrightness(double.NaN, 1.0, 0.125), 9);
         Assert.Equal(0.125, CrunchMath.TubeBrightness(-2.0, 1.0, 0.125), 9);
     }
-
     [Fact]
     public void The_tube_still_reaches_full_brightness_at_the_given_speed()
     {
         Assert.Equal(1.0, CrunchMath.TubeBrightness(1.0, 1.0, 0.125), 9);
         Assert.Equal(1.0, CrunchMath.TubeBrightness(250.0, 1.0, 0.125), 9);
     }
-
     [Fact]
     public void The_tube_brightens_in_a_straight_line_from_its_minimum_to_full()
     {
-        Assert.Equal(0.5625, CrunchMath.TubeBrightness(0.5, 1.0, 0.125), 9);   // Halfway between 0.125 and 1.
+        Assert.Equal(0.5625, CrunchMath.TubeBrightness(0.5, 1.0, 0.125), 9);
         Assert.Equal(0.25, CrunchMath.TubeBrightness(0.25, 1.0, 0.0), 9);
     }
-
     [Fact]
     public void A_zero_minimum_brightness_is_the_plain_speed_intensity()
     {
         for (int i = 0; i <= 40; i++)
             Assert.Equal(CrunchMath.SpeedIntensity(i * 0.05, 1.0), CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.0), 9);
     }
-
     [Fact]
     public void A_minimum_brightness_outside_0_to_1_is_kept_in_range()
     {
         Assert.Equal(1.0, CrunchMath.TubeBrightness(0.0, 1.0, 3.0), 9);
         Assert.Equal(0.0, CrunchMath.TubeBrightness(0.0, 1.0, -1.0), 9);
     }
-
     [Fact]
     public void A_brighter_minimum_is_never_dimmer_at_any_speed()
     {
         for (int i = 0; i <= 40; i++)
             Assert.True(CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.2) >= CrunchMath.TubeBrightness(i * 0.05, 1.0, 0.1) - 1e-12);
     }
-
-    // ---- Number text ----
-
     [Theory]
     [InlineData(5.0, "5")]
     [InlineData(0.25, "0.25")]
@@ -791,7 +649,6 @@ public class CrunchMathTests
     [InlineData(12345.678, "12345.68")]
     public void Plain_numbers_have_no_separators(double value, string expected)
         => Assert.Equal(expected, CrunchMath.FormatNumber(value));
-
     [Theory]
     [InlineData(800.0, "800 m/s")]
     [InlineData(1000.0, "1 km/s")]
@@ -802,7 +659,6 @@ public class CrunchMathTests
     [InlineData(-2500.0, "-2.5 km/s")]
     public void Large_values_switch_to_bigger_units(double value, string expected)
         => Assert.Equal(expected, CrunchMath.FormatScaled(value, "m/s"));
-
     [Theory]
     [InlineData(8000.0, "8000 EC/s")]
     [InlineData(999999.0, "999999 EC/s")]
@@ -810,59 +666,45 @@ public class CrunchMathTests
     [InlineData(2.5e9, "2.5 GEC/s")]
     public void Charge_scales_only_from_a_million(double value, string expected)
         => Assert.Equal(expected, CrunchMath.FormatScaled(value, "EC/s", 1e6));
-
     [Fact]
     public void Scaling_stops_at_tera()
         => Assert.Equal("5000 TEC", CrunchMath.FormatScaled(5e15, "EC"));
-
-    // ---- Dropout spheres: the multiplier and the player's altitude ----
-
     [Fact]
     public void Adjusted_radius_is_unchanged_with_a_multiplier_of_one_and_no_player_altitude()
     {
         double natural = CrunchMath.DropoutRadius(84159286.0, 600000.0, 70000.0, 0.00625, 100000.0, 2.0);
         Assert.Equal(natural, CrunchMath.AdjustedDropoutRadius(natural, 600000.0, 70000.0, 84159286.0, 1.0, 0.0, 1000.0), 3);
     }
-
     [Fact]
     public void Multiplier_scales_the_altitude_not_the_radius()
         => Assert.Equal(600000.0 + 2.0 * 170000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 2.0, 0.0, 1000.0), 3);
-
     [Fact]
     public void Small_multiplier_stops_above_the_atmosphere()
         => Assert.Equal(600000.0 + 70000.0 + 1000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 0.1, 0.0, 1000.0), 3);
-
     [Fact]
     public void Player_altitude_raises_the_sphere_but_never_lowers_it()
     {
         Assert.Equal(600000.0 + 500000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 500000.0, 1000.0), 3);
         Assert.Equal(770000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 50000.0, 1000.0), 3);
     }
-
     [Fact]
     public void Adjusted_radius_never_passes_the_soi()
         => Assert.Equal(84159286.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 1e9, 1000.0), 3);
-
     [Fact]
     public void Tiny_soi_keeps_its_own_radius()
         => Assert.Equal(50000.0, CrunchMath.AdjustedDropoutRadius(50000.0, 10000.0, 0.0, 50000.0, 1.0, 0.0, 1000.0), 3);
-
     [Fact]
     public void Root_body_has_no_soi_cap()
         => Assert.Equal(3.0 * 261600000.0 + 1e9, CrunchMath.AdjustedDropoutRadius(3.0 * 261600000.0, 261600000.0, 0.0, double.PositiveInfinity, 1.0, 2.0 * 261600000.0 + 1e9, 1000.0), 3);
-
     [Fact]
     public void Slider_max_is_a_multiple_of_the_own_altitude()
         => Assert.Equal(3400000.0, CrunchMath.DropoutAltitudeMax(170000.0, 84159286.0, 600000.0, 20.0), 3);
-
     [Fact]
     public void Slider_max_stops_at_the_soi()
         => Assert.Equal(2400000.0 - 200000.0, CrunchMath.DropoutAltitudeMax(100000.0, 2400000.0, 200000.0, 100.0), 3);
-
     [Fact]
     public void Slider_max_is_never_below_the_own_altitude()
         => Assert.Equal(40000.0, CrunchMath.DropoutAltitudeMax(40000.0, 50000.0, 30000.0, 20.0), 3);
-
     [Fact]
     public void Slider_max_has_no_soi_cap_for_a_star()
         => Assert.Equal(20.0 * 261600000.0, CrunchMath.DropoutAltitudeMax(261600000.0, double.PositiveInfinity, 261600000.0, 20.0), 3);

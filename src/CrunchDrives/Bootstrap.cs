@@ -1,5 +1,4 @@
 using UnityEngine;
-
 namespace CrunchDrives
 {
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
@@ -11,7 +10,6 @@ namespace CrunchDrives
             CrunchSettings.Load();
         }
     }
-
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class CrunchFlightProbe : MonoBehaviour
     {

@@ -1,5 +1,4 @@
 using UnityEngine;
-
 namespace HighPowerReactors
 {
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]

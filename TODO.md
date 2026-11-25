@@ -14,6 +14,8 @@
   - All current 2.5m cores appear to be near 30m in size (1.25m core is around 5m in size)
 - Figure out why SystemHeat stats don't show until after part placement in VAB (FFT's reactors' stats do show up)
 
+## Done
+
 ### Reorganize All Options
 
 #### Intended Flight PAW
