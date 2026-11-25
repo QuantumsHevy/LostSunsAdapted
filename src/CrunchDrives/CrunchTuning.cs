@@ -90,6 +90,9 @@ namespace CrunchDrives
         public const double DropoutFraction = 0.00625;      // Fraction of each body's SOI.
         public const double MinDropoutAltitude = 100000.0;  // Zones reach at least this far above surface/atmosphere (m).
         public const double RootBodyDropoutRadii = 2.0;     // Multiplier for Kerbol's dropout radius.
+        public const double DropoutClearance = 1000.0;      // However the dropout sphere is scaled, it stays at least this far above the atmosphere (m).
+        public const double DropoutAltitudeMaxFactor = 20.0; // The Dropout Alt. slider reaches up to this x the body's own dropout altitude (never past its sphere of influence).
+        public const double DropoutAltitudeEditorMax = 5000000.0; // The Dropout Alt. slider's top in the VAB/SPH, where there is no body (m).
 
         // ---- Arrival ----
         public const double CaptureSpeedFraction = 0.9875;      // Capture assistance slows the craft to at most this x local escape speed.
@@ -101,19 +104,24 @@ namespace CrunchDrives
         public const double InterceptMinSeconds = 30.0;         // Minimum duration of the final approach.
         public const double InterceptMaxDistance = 1000000.0;   // Farther than this from the target craft (m), the craft is captured by the body instead.
 
-        // ---- Player controls (live values; the primary crunch drive copies its craft settings here, and the debug window sets UseTurnController and AllowWarp) ----
+        // ---- Global settings: the defaults used when Settings.cfg does not set them (see CrunchSettings) ----
+        public const bool DefaultAllowWarp = true;              // The spool and long crunches may run under time warp. EXPERIMENTAL.
+        public const bool DefaultAllowNearbyCraft = true;       // A crunch may start, and carry on, with other craft loaded nearby. They are left behind.
+        public const bool DefaultUseTurnController = true;      // Turn between the legs with the MechJeb2-derived attitude controller instead of SAS.
+        public const double DefaultDropoutMultiplier = 1.0;     // Scales every dropout sphere's altitude above its body.
+        public const bool DefaultLooseStart = true;             // Loose Start Conditions: a spool may start inside a dropout sphere, inside an atmosphere, or when the craft is not pointing at the target, and a crunch may start inside a dropout sphere or an atmosphere if it heads out of the dropout sphere (the craft still has to be aligned to start the crunch). The second spool between the legs starts at once, while the craft is still turning, and the second leg waits until it is aligned.
+        public const bool DefaultIgnoreDropout = false;         // Manual mode only: the crunch ignores every dropout sphere, the one it starts in and the target's too, so only the player (or the time set) ends it, and the player risks collisions. A spool still cannot start inside a sphere (unless Loose Start Conditions is on).
+
+        // ---- Player controls (live values; the primary crunch drive copies its craft settings here) ----
         public static TravelMode Mode = TravelMode.TwoLeg;          // TwoLeg: crunch to the target in two legs (forward halfway, flip, backward the rest). OneLeg: one crunch all the way to the target's stopping point. Manual: the player's own crunch (see below). TwoLeg and OneLeg need a target.
         public static bool ManualSetSpeed = false;                  // Manual mode: the player sets the average speed (ManualSpeedC). The spool ends by itself at exactly that speed. If not, the speed is whatever the spool reaches.
         public static bool ManualSetTime = true;                    // Manual mode: the player sets the duration (CrunchSeconds). If not, the crunch has no end: the speed ramps up once and stays there until the player collapses the field or the craft drops out.
         public static double ManualSpeedC = 2.5;                    // Manual mode: the average speed (c) when ManualSetSpeed is on; kept between the drive's minimum and top speed.
         public static double CrunchSeconds = 60.0;                  // Manual mode: the duration when ManualSetTime is on.
-        public static bool IgnoreDropout = false;                   // Manual mode only: the crunch ignores every dropout sphere, the one it starts in and the target's too, so only the player (or the time set) ends it, and the player risks collisions. A spool still cannot start inside a sphere (unless Loosen Start Conditions is on).
-        public static bool Backwards = false;                       // Orientation of the FIRST leg. The second leg is always backwards.
-        public static bool UseTurnController = true;                // Turn between the legs with the attitude controller instead of SAS.
-        public static bool AllowWarp = true;                        // The spool and long crunches may run under time warp. EXPERIMENTAL.
-        public static bool SasRetrograde = true;                    // On arrival, set SAS to retrograde (only if SAS is on). The craft is never rotated by force.
-        public static bool LoosenStart = false;                     // Loosen Start Conditions: a spool may start inside a dropout zone, inside an atmosphere, or when the craft is not pointing at the target, and a crunch may start inside a dropout zone or an atmosphere if it heads out of the dropout zone (the craft still has to be aligned to start the crunch). The second spool between the legs starts at once, while the craft is still turning, and the second leg waits until it is aligned.
-        public static bool CaptureAssist = true;                    // On arrival, gradually slow/redirect the velocity until the craft is bound and clear of the surface (or on course to a targeted craft).
+        public static double PlayerDropoutAltitude = 0.0;           // The player's Dropout Alt. (m above sea level): every dropout sphere reaches at least this high. 0 = the spheres' own altitudes.
+        public static bool Backwards = false;                       // Orientation of the FIRST leg (always forward in Two-Leg mode). The second leg is always backwards.
+        public static bool SasRetrograde = true;                    // On arrival, set SAS to retrograde (only if SAS is on). The craft is never rotated by force. Read live: it may be changed during a crunch.
+        public static bool CaptureAssist = true;                    // On arrival, gradually slow/redirect the velocity until the craft is bound and clear of the surface (or on course to a targeted craft). Read live: it may be changed during a crunch.
         public static double CaptureRampSeconds = 2.75;             // Duration of the velocity change; 0 applies it instantly.
     }
 }

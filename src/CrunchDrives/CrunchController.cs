@@ -16,6 +16,18 @@ namespace CrunchDrives
         public static void PrimaryAction() { if (instance != null) instance.DoPrimary(); }
         public static void Cancel() { if (instance != null) instance.DoCancel(); }
 
+        // The part menu's separate buttons. The spool button starts a spool when idle and stops it while spooling or ready, Engage forms the
+        // field from a spool that is long enough (or a finished one), and Exit collapses the field (or aborts the approach between the legs).
+        public static void ToggleSpool()
+        {
+            if (instance == null) return;
+            if (instance.phase == CrunchPhase.Idle) instance.DoPrimary();
+            else instance.DoCancel();
+        }
+        public static void Engage() { if (instance != null && CanEngage) instance.DoPrimary(); }
+        public static void Exit() { if (instance != null && instance.phase == CrunchPhase.Crunching) instance.DoPrimary(); }
+        public static bool CanEngage { get { return instance != null && (instance.phase == CrunchPhase.Ready || CanEngageFromSpool); } }
+
         public static bool IsTurning { get { return instance != null && instance.turning; } }
 
         // Readouts for the part's right-click menu.
@@ -62,10 +74,9 @@ namespace CrunchDrives
         public static int CurrentLeg { get { return instance != null ? instance.leg : 0; } }
         public static double OffAxisDeg;                  // Angle between the craft's crunch axis and the crunch heading; set every tick while a field is up.
 
-        // Dropout zone readouts for the part's right-click menu.
-        public static string DropoutBodyName = "";        // Body whose dropout zone edge is nearest, or "" when unknown.
-        public static double DropoutEdgeMeters;           // Distance to that edge; negative while inside the zone.
-        public static double DropoutAltitudeMeters;       // Height of the current reference body's dropout zone edge above its surface.
+        // Gravity well readout for the part's right-click menu.
+        public static string GravityWellName = "";        // The current reference body, or "" when unknown.
+        public static double DropoutAltitudeMeters;       // Height of that body's dropout sphere above its radius (what the HUD's altitude reads).
 
         // Everything a crunch needs, worked out (and validated) from the vessel's current state.
         struct CrunchPlan
@@ -112,7 +123,7 @@ namespace CrunchDrives
         bool sasFailLogged;
         double turnLogTimer;
         double turnSettled;         // Seconds the craft has been aligned and nearly still.
-        readonly System.Collections.Generic.List<CelestialBody> departingZones = new System.Collections.Generic.List<CelestialBody>();   // Dropout zones the craft started this leg inside (Loosen Start Conditions), heading out of them. They are not scanned until the craft is clear.
+        readonly System.Collections.Generic.List<CelestialBody> departingZones = new System.Collections.Generic.List<CelestialBody>();   // Dropout zones the craft started this leg inside (Loose Start Conditions), heading out of them. They are not scanned until the craft is clear.
         readonly TurnController turnCtl = new TurnController();
         bool turnFallback;          // The attitude controller couldn't steer this craft; SAS does the turn instead.
         double lastUt = -1.0;       // Universal time at the last crunch tick, for crunches under time warp.
@@ -372,7 +383,7 @@ namespace CrunchDrives
 
         // Stars (the root star, and others like Anubis) get a multiple of their radius, never a share of their
         // sphere of influence: that would swallow the planets that orbit them.
-        static double DropoutRadius(CelestialBody b)
+        static double NaturalDropoutRadius(CelestialBody b)
         {
             double soi = b.isStar ? double.PositiveInfinity : b.sphereOfInfluence;
             double r = CrunchMath.DropoutRadius(
@@ -380,6 +391,30 @@ namespace CrunchDrives
                 CrunchTuning.DropoutFraction, CrunchTuning.MinDropoutAltitude, CrunchTuning.RootBodyDropoutRadii);
             if (b.isStar) r = System.Math.Max(r, b.Radius + (b.atmosphere ? b.atmosphereDepth : 0.0) + CrunchTuning.MinDropoutAltitude);
             return r;
+        }
+
+        static double SoiOf(CelestialBody b)
+        {
+            return b.isStar ? double.PositiveInfinity : b.sphereOfInfluence;
+        }
+
+        // The radius the dropout sphere really has: its own radius, with Settings.cfg's multiplier on its altitude and the player's Dropout Alt.
+        // as a floor (see CrunchMath.AdjustedDropoutRadius).
+        static double DropoutRadius(CelestialBody b)
+        {
+            return CrunchMath.AdjustedDropoutRadius(NaturalDropoutRadius(b), b.Radius, b.atmosphere ? b.atmosphereDepth : 0.0, SoiOf(b),
+                CrunchSettings.DropoutMultiplier, CrunchTuning.PlayerDropoutAltitude, CrunchTuning.DropoutClearance);
+        }
+
+        // The Dropout Alt. slider's range for a body: from its own dropout altitude (with the multiplier, no player setting) up to
+        // CrunchTuning.DropoutAltitudeMaxFactor times that, within its sphere of influence. Metres above the body's radius.
+        public static void DropoutAltitudeRange(CelestialBody b, out double minMeters, out double maxMeters)
+        {
+            double soi = SoiOf(b);
+            double radius = CrunchMath.AdjustedDropoutRadius(NaturalDropoutRadius(b), b.Radius, b.atmosphere ? b.atmosphereDepth : 0.0, soi,
+                CrunchSettings.DropoutMultiplier, 0.0, CrunchTuning.DropoutClearance);
+            minMeters = radius - b.Radius;
+            maxMeters = CrunchMath.DropoutAltitudeMax(minMeters, soi, b.Radius, CrunchTuning.DropoutAltitudeMaxFactor);
         }
 
         // Distance to travel to reach a target's stopping point: its dropout edge for a planet or moon,
@@ -521,20 +556,14 @@ namespace CrunchDrives
             TargetName = "";
             TargetStopMeters = -1.0;
             TargetIsBody = false;
-            DropoutBodyName = "";
+            GravityWellName = "";
             if (phase != CrunchPhase.Crunching) OffAxisDeg = 0.0;
 
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null) return;
 
-            // Nearest dropout zone edge (negative while inside a zone), and the dropout altitude of the current body.
-            Vector3d shipPos = v.GetWorldPos3D();
-            double bestEdge = double.PositiveInfinity;
-            foreach (CelestialBody b in FlightGlobals.Bodies)
-            {
-                double edge = (shipPos - b.position).magnitude - DropoutRadius(b);
-                if (edge < bestEdge) { bestEdge = edge; DropoutBodyName = b.name; DropoutEdgeMeters = edge; }
-            }
+            // The current body's dropout sphere, as an altitude the player can compare with the HUD's.
+            GravityWellName = v.mainBody.name;
             DropoutAltitudeMeters = DropoutRadius(v.mainBody) - v.mainBody.Radius;
 
             ITargetable t = v.targetObject;
@@ -603,19 +632,19 @@ namespace CrunchDrives
 
             if (!HasDrive(v)) { Refuse(CrunchText.RefuseNoDrive); return false; }
             if (EnginesThrusting(v)) { Refuse(CrunchText.RefuseEnginesActive); return false; }
-            if (FlightGlobals.VesselsLoaded.Count > 1) { Refuse(CrunchText.RefuseOtherVessels); return false; }
-            // Loosen Start Conditions lets a spool and a crunch start inside an atmosphere. A dropout zone reaches above the atmosphere,
+            if (!CrunchSettings.AllowNearbyCraft && FlightGlobals.VesselsLoaded.Count > 1) { Refuse(CrunchText.RefuseOtherVessels); return false; }
+            // Loose Start Conditions lets a spool and a crunch start inside an atmosphere. A dropout zone reaches above the atmosphere,
             // so the crunch must then head out of that zone (checked below).
-            if (v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth && !CrunchTuning.LoosenStart)
+            if (v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth && !CrunchSettings.LooseStart)
             { Refuse(CrunchText.RefuseAtmosphere); return false; }
 
-            // Starting inside a dropout zone is refused, unless Loosen Start Conditions is on: then a spool may start there, and a crunch
+            // Starting inside a dropout zone is refused, unless Loose Start Conditions is on: then a spool may start there, and a crunch
             // may start there as long as it heads out of the zone (checked below, once the heading is known).
             // Manual mode can ignore the spheres once the crunch starts: the spool's own start check (physics: the blades cannot spin up there)
             // still applies, but an engage no longer checks them.
-            bool ignoreSpheres = CrunchTuning.IgnoreDropout && CrunchTuning.Mode == TravelMode.Manual;
+            bool ignoreSpheres = CrunchSettings.IgnoreDropout && CrunchTuning.Mode == TravelMode.Manual;
             Vector3d p = v.GetWorldPos3D();
-            bool loose = CrunchTuning.LoosenStart;
+            bool loose = CrunchSettings.LooseStart;
             foreach (CelestialBody b in FlightGlobals.Bodies)
             {
                 if (engaging && ignoreSpheres) break;
@@ -629,7 +658,8 @@ namespace CrunchDrives
             Vector3d axis = backwards ? nose * -1.0 : nose;
 
             // With a target selected, crunch toward it instead of along the nose. The craft
-            // only has to be roughly facing it (within the alignment tolerance).
+            // only has to be roughly facing it (within the alignment tolerance). Manual mode never does: it goes the way the craft points,
+            // even with a target selected, and the attitude is the player's.
             bool locked = false;
             string targetName = "";
             double targetDistance = 0.0;
@@ -637,7 +667,7 @@ namespace CrunchDrives
 
             ITargetable target = v.targetObject;
             Vector3d tp;
-            if (TryGetTargetPosition(target, out tp))
+            if (CrunchTuning.Mode != TravelMode.Manual && TryGetTargetPosition(target, out tp))
             {
                 Vector3d to = tp - p;
                 if (to.sqrMagnitude > 1.0)
@@ -714,7 +744,7 @@ namespace CrunchDrives
             // A drive that is engaged under warp when the leg is too short for it is not refused: warp is dropped to 1x and the crunch goes ahead.
             bool warpOk = !open && duration >= CrunchTuning.WarpMinLegSeconds;   // A crunch with no set duration cannot be warped: it has no known end to slow down for.
             if (TimeWarp.CurrentRate > 1.0f &&
-                !(warpOk && CrunchTuning.AllowWarp && phase == CrunchPhase.Ready))
+                !(warpOk && CrunchSettings.AllowWarp && phase == CrunchPhase.Ready))
             {
                 if (engaging)
                 {
@@ -842,7 +872,7 @@ namespace CrunchDrives
             Post(CrunchText.MsgEngaged(CrunchText.DirShort(crunchBackwards)));
         }
 
-        // Loosen Start Conditions: the dropout zones the craft starts this leg inside are left out of the collision scan until the craft
+        // Loose Start Conditions: the dropout zones the craft starts this leg inside are left out of the collision scan until the craft
         // is clear of them (TryPlan has already refused a crunch that heads deeper into one). A straight path out of a sphere never
         // comes back into it, so a zone is scanned again the moment the craft is outside it. This is checked by position, not by a
         // time (the speed ramps up from nothing, so the craft barely moves in the shortest leg's length of time). The list is kept
@@ -850,7 +880,7 @@ namespace CrunchDrives
         void NoteDepartingZones(Vessel v)
         {
             departingZones.Clear();
-            if (!CrunchTuning.LoosenStart) return;
+            if (!CrunchSettings.LooseStart) return;
 
             Vector3d p = v.GetWorldPos3D();
             foreach (CelestialBody b in FlightGlobals.Bodies)
@@ -910,7 +940,7 @@ namespace CrunchDrives
             TimeWarp.SetRate(0, true);
 
             string why;
-            if (!CrunchTuning.AllowWarp) why = CrunchText.MsgWarpLockedOff;
+            if (!CrunchSettings.AllowWarp) why = CrunchText.MsgWarpLockedOff;
             else if (phase == CrunchPhase.Crunching && turning) why = CrunchText.MsgWarpLockedTurning;
             else if (phase == CrunchPhase.Crunching && openEnded) why = CrunchText.MsgWarpLockedOpen;
             else why = CrunchText.MsgWarpLockedShort;
@@ -983,7 +1013,7 @@ namespace CrunchDrives
             BeginSpool(v, firstSpoolSeconds);
             Debug.Log(string.Format("[CrunchDrive] Second spool{5}: drawing {0} for {1:F1} s to match the first leg's {2:G4}c, {3} stored, {4} to go.",
                 CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), CrunchMath.FormatScaled(ReadStored(v), "EC", 1e6), CrunchMath.FormatScaled(remaining0, "m"),
-                CrunchTuning.LoosenStart ? " (loosened: spooling while the craft is still turning)" : ""));
+                CrunchSettings.LooseStart ? " (loosened: spooling while the craft is still turning)" : ""));
             Post(CrunchText.MsgSpoolStart(firstSpoolSeconds));
             return true;
         }
@@ -1033,7 +1063,7 @@ namespace CrunchDrives
             // Still unpacking after time warp: nothing can steer yet.
             if (v.packed) { turnSettled = 0.0; return; }
 
-            bool useController = CrunchTuning.UseTurnController && !turnFallback;
+            bool useController = CrunchSettings.UseTurnController && !turnFallback;
             if (useController)
             {
                 if (turnCtl.Failed)
@@ -1076,12 +1106,12 @@ namespace CrunchDrives
             // The Casimir blades spin up again before the second field can form, for as long as the first spool took, so the
             // second leg gets the same coefficient. The charge comes from whatever is stored now (a reactor or solar panels may have
             // refilled the batteries during the turn); if it runs out the spool ends there and the leg is flown at that speed.
-            // Normally the spool starts once the craft is aligned. With Loosen Start Conditions it starts at once and runs while the craft
+            // Normally the spool starts once the craft is aligned. With Loose Start Conditions it starts at once and runs while the craft
             // is still turning. Either way the craft keeps steering to the target meanwhile, and the field forms once the spool is done
             // and the craft is aligned and settled.
             if (!turnSpooling)
             {
-                if (!CrunchTuning.LoosenStart && (calibrating || turnSettled < CrunchTuning.TurnSettleSeconds)) return;
+                if (!CrunchSettings.LooseStart && (calibrating || turnSettled < CrunchTuning.TurnSettleSeconds)) return;
                 if (!BeginTurnSpool(v, distance)) return;
             }
 
@@ -1428,7 +1458,7 @@ namespace CrunchDrives
         // Returns true while the turn is still in progress.
         bool AimRetrograde(Vessel v, double dt)
         {
-            bool useController = CrunchTuning.UseTurnController && !arrivalFallback;
+            bool useController = CrunchSettings.UseTurnController && !arrivalFallback;
             if (useController && turnCtl.Failed)
             {
                 arrivalFallback = true;
@@ -1568,13 +1598,13 @@ namespace CrunchDrives
         // the second spool, and never during a short leg.
         bool WarpAllowed()
         {
-            if (!CrunchTuning.AllowWarp) return false;
+            if (!CrunchSettings.AllowWarp) return false;
             if (phase == CrunchPhase.Spooling) return true;
             if (phase == CrunchPhase.Ready) return true;   // Engaging checks that the leg is long enough for warp.
             if (phase != CrunchPhase.Crunching) return false;
             // The turn itself is never allowed; the second spool is, like the first: the craft already points at the target.
             // Loosened, the second spool starts while the craft is still turning, so it is allowed only once the craft is aligned and settled.
-            if (turning) return turnSpooling && (!CrunchTuning.LoosenStart || turnSettled >= CrunchTuning.TurnSettleSeconds);
+            if (turning) return turnSpooling && (!CrunchSettings.LooseStart || turnSettled >= CrunchTuning.TurnSettleSeconds);
             return activeWarpOk;
         }
 
@@ -1670,7 +1700,7 @@ namespace CrunchDrives
             }
 
             // ---- Crunching ----
-            if (FlightGlobals.VesselsLoaded.Count > 1) { End(CrunchText.StopOtherVessel); return; }
+            if (!CrunchSettings.AllowNearbyCraft && FlightGlobals.VesselsLoaded.Count > 1) { End(CrunchText.StopOtherVessel); return; }
 
             // Between the legs the craft coasts while it turns around.
             if (turning) { TickTurn(v, dt); return; }

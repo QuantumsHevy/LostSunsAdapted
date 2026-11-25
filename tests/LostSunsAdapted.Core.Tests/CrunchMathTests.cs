@@ -814,4 +814,56 @@ public class CrunchMathTests
     [Fact]
     public void Scaling_stops_at_tera()
         => Assert.Equal("5000 TEC", CrunchMath.FormatScaled(5e15, "EC"));
+
+    // ---- Dropout spheres: the multiplier and the player's altitude ----
+
+    [Fact]
+    public void Adjusted_radius_is_unchanged_with_a_multiplier_of_one_and_no_player_altitude()
+    {
+        double natural = CrunchMath.DropoutRadius(84159286.0, 600000.0, 70000.0, 0.00625, 100000.0, 2.0);
+        Assert.Equal(natural, CrunchMath.AdjustedDropoutRadius(natural, 600000.0, 70000.0, 84159286.0, 1.0, 0.0, 1000.0), 3);
+    }
+
+    [Fact]
+    public void Multiplier_scales_the_altitude_not_the_radius()
+        => Assert.Equal(600000.0 + 2.0 * 170000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 2.0, 0.0, 1000.0), 3);
+
+    [Fact]
+    public void Small_multiplier_stops_above_the_atmosphere()
+        => Assert.Equal(600000.0 + 70000.0 + 1000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 0.1, 0.0, 1000.0), 3);
+
+    [Fact]
+    public void Player_altitude_raises_the_sphere_but_never_lowers_it()
+    {
+        Assert.Equal(600000.0 + 500000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 500000.0, 1000.0), 3);
+        Assert.Equal(770000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 50000.0, 1000.0), 3);
+    }
+
+    [Fact]
+    public void Adjusted_radius_never_passes_the_soi()
+        => Assert.Equal(84159286.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 1e9, 1000.0), 3);
+
+    [Fact]
+    public void Tiny_soi_keeps_its_own_radius()
+        => Assert.Equal(50000.0, CrunchMath.AdjustedDropoutRadius(50000.0, 10000.0, 0.0, 50000.0, 1.0, 0.0, 1000.0), 3);
+
+    [Fact]
+    public void Root_body_has_no_soi_cap()
+        => Assert.Equal(3.0 * 261600000.0 + 1e9, CrunchMath.AdjustedDropoutRadius(3.0 * 261600000.0, 261600000.0, 0.0, double.PositiveInfinity, 1.0, 2.0 * 261600000.0 + 1e9, 1000.0), 3);
+
+    [Fact]
+    public void Slider_max_is_a_multiple_of_the_own_altitude()
+        => Assert.Equal(3400000.0, CrunchMath.DropoutAltitudeMax(170000.0, 84159286.0, 600000.0, 20.0), 3);
+
+    [Fact]
+    public void Slider_max_stops_at_the_soi()
+        => Assert.Equal(2400000.0 - 200000.0, CrunchMath.DropoutAltitudeMax(100000.0, 2400000.0, 200000.0, 100.0), 3);
+
+    [Fact]
+    public void Slider_max_is_never_below_the_own_altitude()
+        => Assert.Equal(40000.0, CrunchMath.DropoutAltitudeMax(40000.0, 50000.0, 30000.0, 20.0), 3);
+
+    [Fact]
+    public void Slider_max_has_no_soi_cap_for_a_star()
+        => Assert.Equal(20.0 * 261600000.0, CrunchMath.DropoutAltitudeMax(261600000.0, double.PositiveInfinity, 261600000.0, 20.0), 3);
 }

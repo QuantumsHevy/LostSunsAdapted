@@ -5,7 +5,11 @@ namespace CrunchDrives
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class CrunchBootstrap : MonoBehaviour
     {
-        void Start() { Debug.Log(CrunchText.LogBootstrapPassed); }
+        void Start()
+        {
+            Debug.Log(CrunchText.LogBootstrapPassed);
+            CrunchSettings.Load();
+        }
     }
 
     [KSPAddon(KSPAddon.Startup.Flight, false)]

@@ -293,6 +293,33 @@ namespace CrunchDrives.Core
             return Math.Min(soi, Math.Max(byFraction, byFloor));
         }
 
+        // The radius actually used for a dropout sphere. Starts from the sphere's own radius (DropoutRadius above), scales its altitude
+        // above the body by 'multiplier', raises it to at least the player's altitude (above the body's radius, like the HUD's), then keeps
+        // it at least 'clearance' above the atmosphere and never beyond the SOI. With a multiplier of 1 and no player altitude it is
+        // the sphere's own radius.
+        public static double AdjustedDropoutRadius(double naturalRadius, double bodyRadius, double atmosphereDepth, double soi,
+                                                   double multiplier, double playerAltitude, double clearance)
+        {
+            double altitude = Math.Max(0.0, naturalRadius - bodyRadius) * Math.Max(0.0, multiplier);
+            altitude = Math.Max(altitude, Math.Max(0.0, playerAltitude));
+            double radius = bodyRadius + altitude;
+            bool finite = !(double.IsInfinity(soi) || soi > 1e20);
+            double floor = bodyRadius + atmosphereDepth + clearance;
+            if (finite) floor = Math.Min(floor, soi);
+            radius = Math.Max(radius, floor);
+            if (finite) radius = Math.Min(radius, soi);
+            return radius;
+        }
+
+        // Top of the Dropout Alt. slider (m above the body's radius): maxFactor x the sphere's own altitude, but not beyond the body's SOI
+        // (a body with no SOI limit has none), and never below the altitude itself.
+        public static double DropoutAltitudeMax(double ownAltitude, double soi, double bodyRadius, double maxFactor)
+        {
+            double max = ownAltitude * Math.Max(1.0, maxFactor);
+            if (!(double.IsInfinity(soi) || soi > 1e20)) max = Math.Min(max, Math.Max(ownAltitude, soi - bodyRadius));
+            return max;
+        }
+
         // ---- Attitude control and intercepts ----
 
         // Fastest turning rate (rad/s) the craft may have while still `angleRad` away from its target attitude.

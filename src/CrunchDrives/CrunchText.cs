@@ -8,7 +8,6 @@ namespace CrunchDrives
         // Part (right-click menu and action groups)
         public const string GroupTitle = "Crunch Drive";
         public const string GroupTargetTitle = "Drive Targeting";
-        public const string GroupSettingsTitle = "Drive Settings";
         public const string ModuleTitle = "Crunch Drive";
         public const string FieldStatus = "Status";
         public const string FieldCoefficient = "Coefficient";
@@ -24,8 +23,9 @@ namespace CrunchDrives
         public const string FieldDistance = "Distance";
         public const string FieldRange = "Range";
         public const string FieldDraw = "Power Draw Rate (EC/s)";
-        public const string FieldDropoutAltitude = "Sphere Boundary";
-        public const string FieldDropoutNearest = "Nearest Sphere";
+        public const string FieldGravityWell = "Gravity Well";
+        public const string FieldDropoutAlt = "Dropout Alt. (km)";
+        public const string TargetNone = "None";
         public const string FieldMode = "Mode";
         public const string ToggleOn = "On";
         public const string ToggleOff = "Off";
@@ -61,12 +61,8 @@ namespace CrunchDrives
         public static string FieldOffAxisValue(double degrees) { return string.Format("{0:F1}\u00b0", degrees); }
         public static string FieldOrbitalValue(double metersPerSecond, string body) { return string.Format("{0} ({1})", CrunchMath.FormatScaled(metersPerSecond, "m/s"), body); }
         public static string FieldLegValue(int leg, bool backwards) { return string.Format("{0} of 2 ({1})", leg, DirHud(backwards)); }
-        public static string FieldDropoutAltitudeValue(double meters, string body) { return FormatDistance(meters) + " above " + body; }
-        public static string FieldDropoutNearestValue(string body, double edgeMeters)
-        {
-            if (edgeMeters < 0.0) return "Inside " + body + "'s dropout sphere, " + FormatDistance(-edgeMeters) + " until departure.";
-            return body + ": " + FormatDistance(edgeMeters) + " away.";
-        }
+        public static string FieldGravityWellFor(string body) { return FieldGravityWell + " (" + body + ")"; }
+        public static string FieldGravityWellValue(double meters) { return FormatDistance(meters); }   // The altitude of the body's dropout sphere, like the HUD's altitude.
 
         public static string FieldTimeValue(double elapsed, double duration)
         {
@@ -89,7 +85,9 @@ namespace CrunchDrives
         // Debug Window
         public const string WindowTitle = "CRUNCHDRIVE DEBUG";
         public const string ButtonSpooling = "SPINNING UP CASIMIR BLADES...";
-        public const string ButtonStop = "COLLAPSE CRUNCH FIELD";
+        public const string ButtonStop = "EXIT CRUNCH FIELD";
+        public const string ButtonStart = "START CASIMIR GENERATION";
+        public const string ButtonEngage = "ENGAGE CRUNCH DRIVE";
         public const string ButtonAbortApproach = "ABORT APPROACH";
         public const string ButtonCancel = "STOP CASIMIR GENERATION";
         public const string LabelTier = "Crunch Coefficient: {0:G3}c";
@@ -97,7 +95,6 @@ namespace CrunchDrives
         public static readonly string[] ModeNames = { "Two-Leg", "One-Leg", "Manual" };   // In the order of the TravelMode enum.
 
         // Manual mode (part menu; shown only while the mode is Manual)
-        public const string GroupManualTitle = "Manual Settings";
         public const string FieldManualSet = "Set:";
         public static readonly string[] ManualSetNames = { "Speed", "Time", "Both", "Neither" };   // Which of the two values below the player sets.
         public const string FieldManualSpeed = "Crunch Coefficient (c)";
@@ -108,10 +105,6 @@ namespace CrunchDrives
         // Settings (part menu)
         public const string ToggleCaptureAssist = "Capture Assistance";
         public const string ToggleSasRetrograde = "Retrograde on Arrival";
-        public const string ToggleTurnController = "Use Attitude Controller";
-        public const string ToggleCrunchWarp = "Allow Time Warp";
-        public const string ToggleLoosenStart = "Loose Start Conditions";
-        public const string ToggleIgnoreDropout = "No Dropout Spheres";
 
         public static string DirLong(bool backwards) { return backwards ? "AFT" : "FORE"; }         // buttons
         public static string DirShort(bool backwards) { return backwards ? "BCK" : "FWD"; }         // messages and log
@@ -232,7 +225,7 @@ namespace CrunchDrives
         public const string MsgWarpLockedTurning = "time warp unavailable while turning.";
         public const string MsgWarpLockedShort = "time warp unavailable during short crunches (45 seconds).";
         public const string MsgWarpLockedOpen = "time warp unavailable during crunches with no set duration.";
-        public const string MsgWarpLockedOff = "time warp is disabled for this craft's crunch drive.";
+        public const string MsgWarpLockedOff = "time warp is disabled in Settings.cfg.";
         public const string MsgFirstLegDone = "leg 1 complete. Turning...";
         public const string MsgSecondLeg = "starting leg 2...";
 
@@ -271,6 +264,15 @@ namespace CrunchDrives
         public static string LogFlightSceneEntered(string vessel)
         {
             return string.Format("[LSA][CrunchDrives] {0} entered the flight scene", vessel);
+        }
+        public const string LogSettingsMissing = "[LSA][CrunchDrives] Settings.cfg not found, using defaults";
+        public static string LogSettingsBadValue(string key, string value)
+        {
+            return string.Format("[LSA][CrunchDrives] Settings.cfg: unusable value '{1}' for {0}, using the default", key, value);
+        }
+        public static string LogSettingsLoaded(bool warp, bool nearby, bool controller, double multiplier, bool loose, bool ignore)
+        {
+            return string.Format("[LSA][CrunchDrives] Settings.cfg: time warp {0}, nearby craft {1}, turn controller {2}, dropout multiplier {3:G4}, loose start {4}, ignore dropout spheres {5}", warp, nearby, controller, multiplier, loose, ignore);
         }
         public const string LogSpheresIgnored = "[LSA][CrunchDrives] Dropout spheres ignored for this crunch (PLAYER ASSUMES RISK OF PHYSICS INSTABILITY)";
         public const string LogNoGlowMaterial = "[LSA][CrunchDrives] No emissives found on part";

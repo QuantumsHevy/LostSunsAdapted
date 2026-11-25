@@ -48,11 +48,7 @@ namespace CrunchDrives
             if (GUILayout.Button(CrunchText.ButtonCancel))
                 CrunchController.Cancel();
 
-            // The craft's settings (mode, duration, automatic approach, capture assistance, SAS) are set in the VAB/SPH, on the crunch
-            // drive's menu. These two are only here. They stay on screen during a crunch and are locked then, so the layout never changes.
-            GUI.enabled = phase != CrunchPhase.Crunching;
-            CrunchTuning.UseTurnController = GUILayout.Toggle(CrunchTuning.UseTurnController, CrunchText.ToggleTurnController);
-            CrunchTuning.AllowWarp = GUILayout.Toggle(CrunchTuning.AllowWarp, CrunchText.ToggleCrunchWarp);
+            // The craft's settings are on the crunch drive's menu, and the global ones are in Settings.cfg.
             GUI.enabled = true;
 
             double tier = CrunchController.ActiveTierC;
