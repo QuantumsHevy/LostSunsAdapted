@@ -243,7 +243,7 @@ namespace CrunchDrives
         }
         void UpdateDropoutRange()
         {
-            CelestialBody body = vessel != null ? vessel.mainBody : null;
+            CelestialBody body = CrunchController.DropoutRangeBody != null ? CrunchController.DropoutRangeBody : (vessel != null ? vessel.mainBody : null);
             if (body == null || body == rangeBody) return;
             rangeBody = body;
             double lo, hi;

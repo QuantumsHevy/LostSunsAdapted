@@ -8,8 +8,8 @@ namespace CrunchDrives
         public const string GroupTargetTitle = "Drive Targeting";
         public const string ModuleTitle = "Crunch Drive";
         public const string FieldStatus = "Status";
-        public const string FieldCoefficient = "Coefficient";
-        public const string FieldSpool = "Charge";
+        public const string FieldCoefficient = "Crunch Coefficient";
+        public const string FieldSpool = "Charge Time";
         public const string FieldLeg = "Leg";
         public const string FieldProgress = "Progress";
         public const string FieldSpeed = "Speed";
@@ -31,7 +31,6 @@ namespace CrunchDrives
         public const string ActionPrimary = "Crunch Drive";
         public const string ModuleInfo = "Compresses spacetime around the craft to enable apparent superluminal travel.";
         public static string ButtonDirection(bool backwards) { return "Direction: " + DirLong(backwards); }
-        // Builds the charge section of part info
         public static string ModuleInfoStats(double fullChargeEc, double minChargeSeconds)
         {
             return string.Format(
@@ -39,7 +38,6 @@ namespace CrunchDrives
                 "\n<b>Minimum Time to Charge: </b>{1} s",
                 CrunchMath.FormatScaled(fullChargeEc, "EC", 1e6), CrunchMath.FormatNumber(minChargeSeconds));
         }
-        // Builds the primary part stats shown below Max. Temp.
         public static string PrimaryField(double maxSpeedC, double attitudeToleranceDeg, int variantCount)
         {
             string text = string.Format("<b>Max. Speed:</b> {0:G3} c\n<b>Attitude Tolerance:</b> {1:F2}\u00b0", maxSpeedC, attitudeToleranceDeg);
@@ -86,8 +84,8 @@ namespace CrunchDrives
         // Manual Mode
         public const string FieldManualSet = "Set:";
         public static readonly string[] ManualSetNames = { "Speed", "Time", "Both", "Neither" };
-        public const string FieldManualSpeed = "Crunch Coefficient (c)";
-        public const string FieldManualTime = "Field Duration (s)";
+        public const string FieldManualSpeed = "Coefficient (c)";
+        public const string FieldManualTime = "Duration (s)";
         public const string ButtonFillHalf = "Set Half Duration";
         public const string ButtonFillFull = "Set Full Duration";
         // Settings (PAW)
@@ -129,7 +127,13 @@ namespace CrunchDrives
         public static string StatusIdleBecause(string reason) { return "IDLE (" + reason + ")"; }
         public static string StatusSpooling(double elapsed, double tierC, double ecPerSecond, bool canEngage)
         {
-            return string.Format("SPOOLING\nCASIMIR BLADES SPINNING UP.\n{0:F1} s ({1:G3}c)\nDRAW: {2}.\n", elapsed, tierC, CrunchMath.FormatScaled(ecPerSecond, "EC/s", 1e6))
+            return string.Format(
+                "SPOOLING\nCASIMIR BLADES SPINNING UP.\n" +
+                "{0}: {1:F1} s\n" +
+                "{2}: {3:G3}c\n" +
+                "{4}: {5}.\n",
+                FieldSpool, elapsed, FieldCoefficient, tierC,
+                FieldDraw, CrunchMath.FormatScaled(ecPerSecond, "EC/s", 1e6))
                  + (canEngage ? "Engage on sufficient coefficient.\n" : "")
                  + "Throttle and translation locked out.";
         }
@@ -139,13 +143,14 @@ namespace CrunchDrives
         {
             return string.Format(
                 "CRUNCH FIELD ACTIVE ({0})\n" +
-                "Speed: {1:G3}c ({2})\n" +
-                "Time: {3}\n" +
-                "Traveled: {4:F3} Gm\n" +
-                "Off-Axis: {5:F1}\u00b0\n" +
-                "Persistent Velocity: {6} relative to {7}{8}",
-                DirHud(backwards), tierC, CrunchMath.FormatScaled(tierC * CrunchMath.C, "m/s"), FieldTimeValue(elapsed, duration),
-                gm, offAxisDeg, CrunchMath.FormatScaled(realSpeed, "m/s"), body, lockInfo);
+                "{1}: {2:G3}c ({3})\n" +
+                "{4}: {5}\n" +
+                "{6}: {7:F3} Gm\n" +
+                "{8}: {9:F1}\u00b0\n" +
+                "{10}: {11} relative to {12}{13}",
+                DirHud(backwards), FieldSpeed, tierC, CrunchMath.FormatScaled(tierC * CrunchMath.C, "m/s"),
+                FieldTime, FieldTimeValue(elapsed, duration), FieldTraveled, gm,
+                FieldOffAxis, offAxisDeg, FieldOrbital, CrunchMath.FormatScaled(realSpeed, "m/s"), body, lockInfo);
         }
         public static string StatusTurning(string target, double offDeg)
         {
@@ -168,37 +173,37 @@ namespace CrunchDrives
         public const string ScreenPrefix = "[Crunch Drive]: ";
         public static string MsgSpoolStart(double seconds)
         {
-            return string.Format("spooling Casimir blades... ({0:F1} s).", seconds);
+            return string.Format("Spooling Casimir blades... ({0:F1} s).", seconds);
         }
         public const string MsgSpoolStartOpen = "spooling Casimir blades...";
         public static string MsgSpoolDry(double tierC)
         {
-            return string.Format("craft EC ran dry. Coefficient achieved: {0:G3}c.", tierC);
+            return string.Format("Craft EC ran dry. Coefficient achieved: {0:G3}c.", tierC);
         }
         public static string MsgSpoolFull(double tierC)
         {
-            return string.Format("casimir blades saturated. Coefficient achieved: {0:G3}c.", tierC);
+            return string.Format("Casimir blades saturated. Coefficient achieved: {0:G3}c.", tierC);
         }
-        public static string MsgEngaged(string dir) { return "crunch field engaged (" + dir + ")."; }
-        public static string MsgRefused(string reason) { return "crunch refused: " + reason; }
-        public static string MsgEnded(string reason) { return "crunch ended: " + reason + " Engine controls restored."; }
-        public static string MsgSpoolCancelled(string reason) { return "spool cancelled: " + reason + " Engine controls restored."; }
+        public static string MsgEngaged(string dir) { return "Crunch field engaged (" + dir + ")."; }
+        public static string MsgRefused(string reason) { return "Crunch refused: " + reason; }
+        public static string MsgEnded(string reason) { return "Crunch ended: " + reason + " Engine controls restored."; }
+        public static string MsgSpoolCancelled(string reason) { return "Spool cancelled: " + reason + " Engine controls restored."; }
         public static string MsgCaptureAssist(double fromSpeed, double toSpeed, string body)
         {
-            return string.Format("capture assistance reduced persistent velocity from {0} to {1} relative to {2}.", CrunchMath.FormatScaled(fromSpeed, "m/s"), CrunchMath.FormatScaled(toSpeed, "m/s"), body);
+            return string.Format("Capture assistance reduced persistent velocity from {0} to {1} relative to {2}.", CrunchMath.FormatScaled(fromSpeed, "m/s"), CrunchMath.FormatScaled(toSpeed, "m/s"), body);
         }
         public static string MsgIntercept(double fromSpeed, double toSpeed, string target)
         {
-            return string.Format("capture assistance set a course to intercept {2}. Persistent velocity changed from {0} to {1}.", CrunchMath.FormatScaled(fromSpeed, "m/s"), CrunchMath.FormatScaled(toSpeed, "m/s"), target);
+            return string.Format("Capture assistance set a course to intercept {2}. Persistent velocity changed from {0} to {1}.", CrunchMath.FormatScaled(fromSpeed, "m/s"), CrunchMath.FormatScaled(toSpeed, "m/s"), target);
         }
-        public const string MsgTurnControllerFallback = "attitude controller found no torque. Switching to SAS...";
-        public const string MsgWarpDropped = "time warp released.";
-        public const string MsgWarpLockedTurning = "time warp unavailable while turning.";
-        public const string MsgWarpLockedShort = "time warp unavailable during short crunches (45 seconds).";
-        public const string MsgWarpLockedOpen = "time warp unavailable during crunches with no set duration.";
-        public const string MsgWarpLockedOff = "time warp is disabled in Settings.cfg.";
-        public const string MsgFirstLegDone = "leg 1 complete. Turning...";
-        public const string MsgSecondLeg = "starting leg 2...";
+        public const string MsgTurnControllerFallback = "Attitude controller found no torque. Switching to SAS...";
+        public const string MsgWarpDropped = "Time warp released.";
+        public const string MsgWarpLockedTurning = "Time warp unavailable while turning.";
+        public const string MsgWarpLockedShort = "Time warp unavailable during short crunches (45 seconds).";
+        public const string MsgWarpLockedOpen = "Time warp unavailable during crunches with no set duration.";
+        public const string MsgWarpLockedOff = "Time warp is disabled in Settings.cfg.";
+        public const string MsgFirstLegDone = "Leg 1 complete. Turning...";
+        public const string MsgSecondLeg = "Starting leg 2...";
         // Reasons
         public const string RefuseNoDrive = "No crunch drive is installed.";
         public const string RefuseTimeWarp = "Time warp is currently active.";

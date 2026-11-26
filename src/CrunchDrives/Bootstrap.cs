@@ -16,7 +16,7 @@ namespace CrunchDrives
         void Start()
         {
             Vessel v = FlightGlobals.ActiveVessel;
-            Debug.Log(CrunchText.LogFlightSceneEntered(v != null ? v.vesselName : "Unknown Vessel"));
+            Debug.Log(CrunchText.LogFlightSceneEntered(v != null ? v.vesselName : "Unnamed Vessel"));
         }
     }
 }

@@ -4,6 +4,11 @@
 
 - Redo all textures (re-seam, cull invisible faces, fix AO maps, increase resolution where allowable)
 - Improve all colliders (direct edit of the Blender tool's generated meshes)
+  - Respite: 25.625m (51.25)
+  - Pointwatch: 30.625m (61.25)
+  - UGDF: 25.625m (51.25)
+  - Compact: 5m (10)
+  - Deva: 7.5m (15)
 - Model and add UGDF-CD "Deva" Crunch Drive with appropriate stats and descriptions
 
 ## Compatibility

@@ -62,6 +62,7 @@ namespace CrunchDrives
         public static double OffAxisDeg;
         public static string GravityWellName = "";
         public static double DropoutAltitudeMeters;
+        public static CelestialBody DropoutRangeBody;
         struct CrunchPlan
         {
             public bool backwards;
@@ -428,10 +429,12 @@ namespace CrunchDrives
             TargetStopMeters = -1.0;
             TargetIsBody = false;
             GravityWellName = "";
+            DropoutRangeBody = null;
             if (phase != CrunchPhase.Crunching) OffAxisDeg = 0.0;
             Vessel v = FlightGlobals.ActiveVessel;
             if (v == null) return;
             GravityWellName = v.mainBody.name;
+            DropoutRangeBody = (v.targetObject as CelestialBody) ?? v.mainBody;
             DropoutAltitudeMeters = DropoutRadius(v.mainBody) - v.mainBody.Radius;
             ITargetable t = v.targetObject;
             Vector3d tp;

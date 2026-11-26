@@ -97,14 +97,14 @@ namespace CrunchDrives
         public const bool DefaultLooseStart = true;
         public const bool DefaultIgnoreDropout = false;
         // Player Controls
-        public static TravelMode Mode = TravelMode.TwoLeg;
+        public static TravelMode Mode = TravelMode.OneLeg;
         public static bool ManualSetSpeed = false;
         public static bool ManualSetTime = true;
-        public static double ManualSpeedC = 2.5;
-        public static double CrunchSeconds = 60.0;
+        public static double ManualSpeedC = 25.0;
+        public static double CrunchSeconds = 45.0;
         public static double PlayerDropoutAltitude = 0.0;
         public static bool Backwards = false;
-        public static bool SasRetrograde = true;
+        public static bool SasRetrograde = false;
         public static bool CaptureAssist = true;
         public static double CaptureRampSeconds = 2.75;
     }
