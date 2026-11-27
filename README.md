@@ -13,7 +13,9 @@ LSA requires these mods in order to run as intended.
 
 Patches that add compatibility with these mods are included with installation.
 
+- [System Heat](https://github.com/KSPModStewards/SystemHeat/)
 - [Community Tech Tree](https://github.com/post-kerbin-mining-corporation/CommunityTechTree)
+- [Community Category Kit](https://github.com/UmbraSpaceIndustries/CommunityCategoryKit)
 - [VABOrganizer](https://github.com/KSPModStewards/VABOrganizer)
 
 ## Installation
