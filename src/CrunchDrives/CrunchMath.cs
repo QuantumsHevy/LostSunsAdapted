@@ -188,8 +188,7 @@ namespace CrunchDrives.Core
         public static double AdjustedDropoutRadius(double naturalRadius, double bodyRadius, double atmosphereDepth, double soi,
                                                    double multiplier, double playerAltitude, double clearance)
         {
-            double altitude = Math.Max(0.0, naturalRadius - bodyRadius) * Math.Max(0.0, multiplier);
-            altitude = Math.Max(altitude, Math.Max(0.0, playerAltitude));
+            double altitude = Math.Max(0.0, naturalRadius - bodyRadius) * Math.Max(0.0, multiplier) + Math.Max(0.0, playerAltitude);
             double radius = bodyRadius + altitude;
             bool finite = !(double.IsInfinity(soi) || soi > 1e20);
             double floor = bodyRadius + atmosphereDepth + clearance;

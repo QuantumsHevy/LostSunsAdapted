@@ -22,7 +22,7 @@ namespace CrunchDrives
         public const string FieldRange = "Range";
         public const string FieldDraw = "Power Draw Rate (EC/s)";
         public const string FieldGravityWell = "Gravity Well";
-        public const string FieldDropoutAlt = "Dropout Alt. (km)";
+        public const string FieldDropoutAlt = "Dropout Pad. (km)";
         public const string TargetNone = "None";
         public const string FieldMode = "Mode";
         public const string ToggleOn = "On";

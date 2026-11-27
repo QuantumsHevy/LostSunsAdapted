@@ -682,11 +682,20 @@ public class CrunchMathTests
     public void Small_multiplier_stops_above_the_atmosphere()
         => Assert.Equal(600000.0 + 70000.0 + 1000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 0.1, 0.0, 1000.0), 3);
     [Fact]
-    public void Player_altitude_raises_the_sphere_but_never_lowers_it()
+    public void Player_altitude_is_added_to_the_sphere_altitude()
     {
-        Assert.Equal(600000.0 + 500000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 500000.0, 1000.0), 3);
-        Assert.Equal(770000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 50000.0, 1000.0), 3);
+        Assert.Equal(600000.0 + 170000.0 + 500000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 500000.0, 1000.0), 3);
+        Assert.Equal(600000.0 + 170000.0 + 50000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 50000.0, 1000.0), 3);
     }
+    [Fact]
+    public void The_multiplier_scales_only_the_sphere_altitude_not_the_player_altitude()
+        => Assert.Equal(600000.0 + 2.0 * 170000.0 + 10000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 2.0, 10000.0, 1000.0), 3);
+    [Fact]
+    public void A_negative_player_altitude_adds_nothing()
+        => Assert.Equal(770000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, -50000.0, 1000.0), 3);
+    [Fact]
+    public void A_small_sum_of_sphere_and_player_altitude_still_stops_above_the_atmosphere()
+        => Assert.Equal(600000.0 + 70000.0 + 1000.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 0.1, 10000.0, 1000.0), 3);
     [Fact]
     public void Adjusted_radius_never_passes_the_soi()
         => Assert.Equal(84159286.0, CrunchMath.AdjustedDropoutRadius(770000.0, 600000.0, 70000.0, 84159286.0, 1.0, 1e9, 1000.0), 3);
@@ -695,7 +704,7 @@ public class CrunchMathTests
         => Assert.Equal(50000.0, CrunchMath.AdjustedDropoutRadius(50000.0, 10000.0, 0.0, 50000.0, 1.0, 0.0, 1000.0), 3);
     [Fact]
     public void Root_body_has_no_soi_cap()
-        => Assert.Equal(3.0 * 261600000.0 + 1e9, CrunchMath.AdjustedDropoutRadius(3.0 * 261600000.0, 261600000.0, 0.0, double.PositiveInfinity, 1.0, 2.0 * 261600000.0 + 1e9, 1000.0), 3);
+        => Assert.Equal(3.0 * 261600000.0 + 1e9, CrunchMath.AdjustedDropoutRadius(3.0 * 261600000.0, 261600000.0, 0.0, double.PositiveInfinity, 1.0, 1e9, 1000.0), 3);
     [Fact]
     public void Slider_max_is_a_multiple_of_the_own_altitude()
         => Assert.Equal(3400000.0, CrunchMath.DropoutAltitudeMax(170000.0, 84159286.0, 600000.0, 20.0), 3);

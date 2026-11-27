@@ -204,7 +204,7 @@ namespace CrunchDrives
             CrunchSettings.EnsureLoaded();
             SetOptions(Fields[nameof(travelMode)].uiControlEditor as UI_ChooseOption);
             SetOptions(Fields[nameof(travelMode)].uiControlFlight as UI_ChooseOption);
-            SetDropoutRange(Fields[nameof(dropoutAltKm)], CrunchTuning.MinDropoutAltitude * CrunchSettings.DropoutMultiplier / 1000.0, CrunchTuning.DropoutAltitudeEditorMax / 1000.0);
+            SetDropoutRange(Fields[nameof(dropoutAltKm)], 0.0, CrunchTuning.DropoutAltitudeEditorMax / 1000.0);
             SetManualOptions(Fields[nameof(manualSet)].uiControlEditor as UI_ChooseOption);
             SetManualOptions(Fields[nameof(manualSet)].uiControlFlight as UI_ChooseOption);
             DriveStats st = Stats;
@@ -248,7 +248,7 @@ namespace CrunchDrives
             rangeBody = body;
             double lo, hi;
             CrunchController.DropoutAltitudeRange(body, out lo, out hi);
-            SetDropoutRange(Fields[nameof(dropoutAltKm)], lo / 1000.0, hi / 1000.0);
+            SetDropoutRange(Fields[nameof(dropoutAltKm)], 0.0, (hi - lo) / 1000.0);
             menuDirty = true;
         }
         static void SetOptions(UI_ChooseOption option)
