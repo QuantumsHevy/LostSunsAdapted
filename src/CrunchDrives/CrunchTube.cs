@@ -36,7 +36,8 @@ namespace CrunchDrives
         float colorBase = 1f;
         readonly List<ScanCorner> scan = new List<ScanCorner>();
         readonly List<string> scanParts = new List<string>();
-        float scanRingRadius, scanMaxAlong, scanMinAlong, scanBoundRadius;
+        float scanWidestRadius, scanMaxAlong, scanMinAlong, scanBoundRadius;
+        string scanWidestPart = "";
         int scanRenderers;
         bool scanned;
         float radius = 1f;
@@ -181,21 +182,12 @@ namespace CrunchDrives
             Vector3 axis = pt.up;
             scan.Clear();
             scanParts.Clear();
-            scanRingRadius = 0f;
+            scanWidestRadius = 0f;
+            scanWidestPart = "";
             scanMaxAlong = 0f;
             scanMinAlong = 0f;
             scanBoundRadius = 0f;
             scanRenderers = 0;
-            foreach (Renderer r in MeshRenderers(drive))
-            {
-                if (!Usable(r)) continue;
-                int n = ObbCorners(r);
-                for (int i = 0; i < n; i++)
-                {
-                    Vector3 local = pt.InverseTransformPoint(corners[i]);
-                    scanRingRadius = Mathf.Max(scanRingRadius, Mathf.Abs(local.x), Mathf.Abs(local.z));
-                }
-            }
             for (int p = 0; p < vessel.parts.Count; p++)
             {
                 scanParts.Add(vessel.parts[p].name);
@@ -212,6 +204,7 @@ namespace CrunchDrives
                         if (along > scanMaxAlong) scanMaxAlong = along;
                         if (along < scanMinAlong) scanMinAlong = along;
                         scanBoundRadius = Mathf.Max(scanBoundRadius, offset.magnitude);
+                        if (radial > scanWidestRadius) { scanWidestRadius = radial; scanWidestPart = vessel.parts[p].name; }
                         scan.Add(new ScanCorner { along = along, radial = radial, part = p });
                     }
                 }
@@ -222,7 +215,7 @@ namespace CrunchDrives
         {
             if (root == null || !scanned) return;
             float curve = (float)CrunchTuning.TubeCurve;
-            float ringR = Mathf.Max(0.5f, scanRingRadius * (float)CrunchTuning.TubeRadiusFactor);
+            float ringR = Mathf.Max(0.5f, scanWidestRadius * (float)CrunchTuning.TubeRadiusFactor);
             float fitMax = (float)CrunchTuning.TubeFitMaxFactor;
             float needForward = 0f;
             float needBackward = 0f;
@@ -249,7 +242,7 @@ namespace CrunchDrives
             float minAlong = scanMinAlong;
             float craftLength = maxAlong - minAlong;
             radius = ringR;
-            float minHalf = Mathf.Max(2f, scanRingRadius * 2f);
+            float minHalf = Mathf.Max(2f, scanWidestRadius * 2f);
             forward = Mathf.Max(minHalf, maxAlong + EndMargin, needForward);
             backward = Mathf.Max(minHalf, -minAlong + EndMargin, needBackward);
             float length = Mathf.Max(forward, backward);
@@ -275,6 +268,7 @@ namespace CrunchDrives
             built = true;
             lamp.range = Mathf.Max(radius, craftLength) * (float)CrunchTuning.TubeLightRangeFactor;
             Debug.Log(CrunchText.LogTubeMeasured(radius, forward, backward, craftLength));
+            Debug.Log(CrunchText.LogTubeWidest(scanWidestPart, scanWidestRadius));
             if (poking > 0) Debug.Log(CrunchText.LogTubePoking(poking));
             Debug.Log(CrunchText.LogTubeSources(scanRenderers, scanParts.Count, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial));
         }
