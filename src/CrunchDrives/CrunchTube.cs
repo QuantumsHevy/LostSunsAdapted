@@ -8,6 +8,7 @@ namespace CrunchDrives
         const int CornerCount = 8;
         const int MaxMeshVertices = 60000;
         const float EndMargin = 1f;
+        const int MaxRefineVertices = 65000;
         struct ScanCorner
         {
             public float along;
@@ -38,6 +39,7 @@ namespace CrunchDrives
         readonly List<string> scanParts = new List<string>();
         float scanWidestRadius, scanMaxAlong, scanMinAlong, scanBoundRadius;
         string scanWidestPart = "";
+        string scanWidestSource = "";
         int scanRenderers;
         bool scanned;
         float radius = 1f;
@@ -62,6 +64,9 @@ namespace CrunchDrives
         static Shader shader;
         static Texture2D glowTexture;
         static readonly Vector3[] corners = new Vector3[CornerCount];
+        static readonly float[] cornerAlong = new float[CornerCount];
+        static readonly float[] cornerRadial = new float[CornerCount];
+        static readonly List<Vector3> vertexBuffer = new List<Vector3>();
         static readonly string[] ShaderNames =
         {
             "KSP/Particles/Alpha Blended",
@@ -184,6 +189,7 @@ namespace CrunchDrives
             scanParts.Clear();
             scanWidestRadius = 0f;
             scanWidestPart = "";
+            scanWidestSource = "";
             scanMaxAlong = 0f;
             scanMinAlong = 0f;
             scanBoundRadius = 0f;
@@ -196,17 +202,28 @@ namespace CrunchDrives
                     if (!Usable(r)) continue;
                     scanRenderers++;
                     int n = ObbCorners(r);
+                    float boxRadial = 0f;
                     for (int i = 0; i < n; i++)
                     {
                         Vector3 offset = corners[i] - center;
                         float along = Vector3.Dot(offset, axis);
-                        float radial = Mathf.Sqrt(Mathf.Max(0f, offset.sqrMagnitude - along * along));
+                        cornerAlong[i] = along;
+                        cornerRadial[i] = Mathf.Sqrt(Mathf.Max(0f, offset.sqrMagnitude - along * along));
+                        boxRadial = Mathf.Max(boxRadial, cornerRadial[i]);
                         if (along > scanMaxAlong) scanMaxAlong = along;
                         if (along < scanMinAlong) scanMinAlong = along;
                         scanBoundRadius = Mathf.Max(scanBoundRadius, offset.magnitude);
-                        if (radial > scanWidestRadius) { scanWidestRadius = radial; scanWidestPart = vessel.parts[p].name; }
-                        scan.Add(new ScanCorner { along = along, radial = radial, part = p });
                     }
+                    float radial = boxRadial;
+                    string how = "box";
+                    if (boxRadial > scanWidestRadius) radial = MeshRadial(r, center, axis, boxRadial, out how);
+                    if (radial > scanWidestRadius)
+                    {
+                        scanWidestRadius = radial;
+                        scanWidestPart = vessel.parts[p].name;
+                        scanWidestSource = r.name + " / " + r.sharedMaterial.shader.name + ", " + how;
+                    }
+                    for (int i = 0; i < n; i++) scan.Add(new ScanCorner { along = cornerAlong[i], radial = Mathf.Min(cornerRadial[i], radial), part = p });
                 }
             }
             scanned = true;
@@ -268,7 +285,7 @@ namespace CrunchDrives
             built = true;
             lamp.range = Mathf.Max(radius, craftLength) * (float)CrunchTuning.TubeLightRangeFactor;
             Debug.Log(CrunchText.LogTubeMeasured(radius, forward, backward, craftLength));
-            Debug.Log(CrunchText.LogTubeWidest(scanWidestPart, scanWidestRadius));
+            Debug.Log(CrunchText.LogTubeWidest(scanWidestPart, scanWidestSource, scanWidestRadius));
             if (poking > 0) Debug.Log(CrunchText.LogTubePoking(poking));
             Debug.Log(CrunchText.LogTubeSources(scanRenderers, scanParts.Count, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial));
         }
@@ -292,7 +309,56 @@ namespace CrunchDrives
         }
         bool Usable(Renderer r)
         {
-            return r != null && r.enabled && r.gameObject.activeInHierarchy && !r.transform.IsChildOf(root.transform);
+            return r != null && r.enabled && r.gameObject.activeInHierarchy && !r.transform.IsChildOf(root.transform) && !IsEffect(r);
+        }
+        static bool IsEffect(Renderer r)
+        {
+            Material m = r.sharedMaterial;
+            if (m == null || m.shader == null) return true;
+            string n = m.shader.name;
+            return n.StartsWith("Waterfall") || n.Contains("Particles") || m.renderQueue >= 3000;
+        }
+        static float MeshRadial(Renderer r, Vector3 center, Vector3 axis, float boxRadial, out string how)
+        {
+            how = "box";
+            Mesh mesh;
+            Mesh baked = null;
+            Matrix4x4 toWorld;
+            SkinnedMeshRenderer skinned = r as SkinnedMeshRenderer;
+            if (skinned != null)
+            {
+                if (skinned.sharedMesh == null || skinned.sharedMesh.vertexCount > MaxRefineVertices) return boxRadial;
+                baked = new Mesh();
+                skinned.BakeMesh(baked);
+                mesh = baked;
+                Transform t = skinned.transform;
+                toWorld = Matrix4x4.TRS(t.position, t.rotation, t.lossyScale);
+                how = "baked";
+            }
+            else
+            {
+                MeshFilter mf = r.GetComponent<MeshFilter>();
+                mesh = mf != null ? mf.sharedMesh : null;
+                if (mesh == null || !mesh.isReadable || mesh.vertexCount > MaxRefineVertices) return boxRadial;
+                toWorld = r.transform.localToWorldMatrix;
+                how = "mesh";
+            }
+            if (mesh.vertexCount == 0)
+            {
+                if (baked != null) Object.Destroy(baked);
+                how = "box";
+                return boxRadial;
+            }
+            mesh.GetVertices(vertexBuffer);
+            if (baked != null) Object.Destroy(baked);
+            float widest = 0f;
+            for (int i = 0; i < vertexBuffer.Count; i++)
+            {
+                Vector3 offset = toWorld.MultiplyPoint3x4(vertexBuffer[i]) - center;
+                float along = Vector3.Dot(offset, axis);
+                widest = Mathf.Max(widest, offset.sqrMagnitude - along * along);
+            }
+            return Mathf.Min(boxRadial, Mathf.Sqrt(Mathf.Max(0f, widest)));
         }
         static int ObbCorners(Renderer r)
         {

@@ -97,7 +97,7 @@ namespace CrunchDrives
         public const bool DefaultLooseStart = true;
         public const bool DefaultIgnoreDropout = false;
         // Player Controls
-        public static TravelMode Mode = TravelMode.TwoLeg;
+        public static TravelMode Mode = TravelMode.OneLeg;
         public static bool ManualSetSpeed = false;
         public static bool ManualSetTime = true;
         public static double ManualSpeedC = 25.0;

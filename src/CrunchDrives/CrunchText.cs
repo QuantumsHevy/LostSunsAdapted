@@ -265,9 +265,9 @@ namespace CrunchDrives
             return string.Format("[LSA][CrunchDrives] FX measured from {0} mesh renderers on {1} parts; FWD end set by {2} ({3:F1} m along, {4:F1} m from axis). BWD end set by {5} ({6:F1} m along, {7:F1} m from axis)",
                 renderers, parts, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial);
         }
-        public static string LogTubeWidest(string part, double radial)
+        public static string LogTubeWidest(string part, string source, double radial)
         {
-            return string.Format("[LSA][CrunchDrives] FX radius set by {0} ({1:F1} m from axis)", part, radial);
+            return string.Format("[LSA][CrunchDrives] FX radius set by {0} ({1}, {2:F1} m from axis)", part, source, radial);
         }
         public static string LogTubePoking(int corners)
         {
