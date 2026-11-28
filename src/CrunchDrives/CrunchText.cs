@@ -264,6 +264,10 @@ namespace CrunchDrives
         {
             return string.Format("[LSA] [CrunchDrives] Settings.cfg: time warp {0}, nearby craft {1}, turn controller {2}, dropout multiplier {3:G4}, loose start {4}, ignore dropout spheres {5}", warp, nearby, controller, multiplier, loose, ignore);
         }
+        public static string LogSettingsTubeIgnored(string parts)
+        {
+            return string.Format("[LSA] [CrunchDrives] Settings.cfg: FX width ignores part(s): {0}", parts.Length > 0 ? parts : "(none)");
+        }
         public const string LogSpheresIgnored = "[LSA] [CrunchDrives] Dropout spheres ignored for this crunch (PLAYER ASSUMES RISK OF PHYSICS INSTABILITY)";
         public const string LogNoGlowMaterial = "[LSA] [CrunchDrives] No emissives found on part";
         public static string LogGlowMaterials(int materials, int renderers)
@@ -289,6 +293,10 @@ namespace CrunchDrives
         public static string LogTubeWidestVertices(int total, int outer, int mid)
         {
             return string.Format("[LSA] [CrunchDrives] FX widest renderer: {0} vertices; {1} beyond 95% of radius, {2} beyond 75%", total, outer, mid);
+        }
+        public static string LogTubeIgnored(string parts)
+        {
+            return "[LSA] [CrunchDrives] FX width skipped for ignored part(s): " + parts + " (still counted for length)";
         }
         public static string LogTubePoking(int corners)
         {

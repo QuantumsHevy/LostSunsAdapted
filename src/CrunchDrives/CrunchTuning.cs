@@ -96,6 +96,7 @@ namespace CrunchDrives
         public const double DefaultDropoutMultiplier = 1.0;
         public const bool DefaultLooseStart = true;
         public const bool DefaultIgnoreDropout = false;
+        public static readonly string[] DefaultTubeIgnoredParts = { "sspx-expandable-centrifuge-5-1" };
         // Player Controls
         public static TravelMode Mode = TravelMode.OneLeg;
         public static bool ManualSetSpeed = false;

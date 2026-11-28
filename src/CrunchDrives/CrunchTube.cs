@@ -37,6 +37,7 @@ namespace CrunchDrives
         float colorBase = 1f;
         readonly List<ScanCorner> scan = new List<ScanCorner>();
         readonly List<string> scanParts = new List<string>();
+        readonly List<string> scanIgnored = new List<string>();
         float scanWidestRadius, scanMaxAlong, scanMinAlong, scanBoundRadius;
         string scanWidestPart = "";
         string scanWidestSource = "";
@@ -190,6 +191,7 @@ namespace CrunchDrives
             Vector3 axis = pt.up;
             scan.Clear();
             scanParts.Clear();
+            scanIgnored.Clear();
             scanWidestRadius = 0f;
             scanWidestPart = "";
             scanWidestSource = "";
@@ -203,6 +205,8 @@ namespace CrunchDrives
             for (int p = 0; p < vessel.parts.Count; p++)
             {
                 scanParts.Add(vessel.parts[p].name);
+                bool ignoreWidth = CrunchSettings.IsTubeIgnored(vessel.parts[p].name);
+                if (ignoreWidth) scanIgnored.Add(vessel.parts[p].name);
                 foreach (Renderer r in MeshRenderers(vessel.parts[p]))
                 {
                     if (!Usable(r)) continue;
@@ -223,8 +227,9 @@ namespace CrunchDrives
                     float radial = boxRadial;
                     string how = "box";
                     meshTotal = 0;
-                    if (boxRadial > scanWidestRadius) radial = MeshRadial(r, center, axis, boxRadial, out how);
-                    if (radial > scanWidestRadius)
+                    if (ignoreWidth) radial = 0f;
+                    else if (boxRadial > scanWidestRadius) radial = MeshRadial(r, center, axis, boxRadial, out how);
+                    if (!ignoreWidth && radial > scanWidestRadius)
                     {
                         scanWidestRadius = radial;
                         scanWidestPart = vessel.parts[p].name;
@@ -233,7 +238,7 @@ namespace CrunchDrives
                         scanWidestOuter = meshOuter;
                         scanWidestMid = meshMid;
                     }
-                    for (int i = 0; i < n; i++) scan.Add(new ScanCorner { along = cornerAlong[i], radial = Mathf.Min(cornerRadial[i], radial), part = p });
+                    for (int i = 0; i < n; i++) scan.Add(new ScanCorner { along = cornerAlong[i], radial = ignoreWidth ? cornerRadial[i] : Mathf.Min(cornerRadial[i], radial), part = p });
                 }
             }
             scanned = true;
@@ -297,6 +302,7 @@ namespace CrunchDrives
             Debug.Log(CrunchText.LogTubeMeasured(radius, forward, backward, craftLength));
             Debug.Log(CrunchText.LogTubeWidest(scanWidestPart, scanWidestSource, scanWidestRadius));
             if (scanWidestTotal > 0) Debug.Log(CrunchText.LogTubeWidestVertices(scanWidestTotal, scanWidestOuter, scanWidestMid));
+            if (scanIgnored.Count > 0) Debug.Log(CrunchText.LogTubeIgnored(string.Join(", ", scanIgnored.ToArray())));
             if (poking > 0) Debug.Log(CrunchText.LogTubePoking(poking));
             Debug.Log(CrunchText.LogTubeSources(scanRenderers, scanParts.Count, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial));
         }
