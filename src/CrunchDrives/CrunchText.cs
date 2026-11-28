@@ -66,6 +66,7 @@ namespace CrunchDrives
             switch (phase)
             {
                 case CrunchPhase.Spooling: return "SPOOLING...";
+                case CrunchPhase.Paused: return "HALTED";
                 case CrunchPhase.Ready: return "READY";
                 case CrunchPhase.Crunching: return "ACTIVE";
                 default: return "IDLE";
@@ -73,12 +74,13 @@ namespace CrunchDrives
         }
         // Debug Window
         public const string WindowTitle = "CRUNCHDRIVE DEBUG";
-        public const string ButtonSpooling = "SPINNING UP CASIMIR BLADES...";
+        public const string ButtonPause = "HALT CASIMIR GENERATION";
+        public const string ButtonResume = "RESUME CASIMIR GENERATION";
         public const string ButtonStop = "EXIT CRUNCH FIELD";
         public const string ButtonStart = "START CASIMIR GENERATION";
         public const string ButtonEngage = "ENGAGE CRUNCH DRIVE";
         public const string ButtonAbortApproach = "ABORT APPROACH";
-        public const string ButtonCancel = "STOP CASIMIR GENERATION";
+        public const string ButtonCancel = "DISCHARGE CASIMIR FIELD";
         public const string LabelTier = "Crunch Coefficient: {0:G3}c";
         public static readonly string[] ModeNames = { "Two-Leg", "One-Leg", "Manual" };
         // Manual Mode
@@ -94,12 +96,13 @@ namespace CrunchDrives
         public static string DirLong(bool backwards) { return backwards ? "AFT" : "FORE"; }         // buttons
         public static string DirShort(bool backwards) { return backwards ? "BCK" : "FWD"; }         // messages and log
         public static string DirHud(bool backwards) { return backwards ? "BACKWARD" : "FORWARD"; }  // status readout
-        public static string PrimaryButton(CrunchPhase phase, bool backwards, bool turning = false, bool canEngage = false)
+        public static string PrimaryButton(CrunchPhase phase, bool backwards, bool turning = false)
         {
             if (phase == CrunchPhase.Crunching && turning) return ButtonAbortApproach;
             switch (phase)
             {
-                case CrunchPhase.Spooling: return canEngage ? "ENGAGE CRUNCH DRIVE (" + DirLong(backwards) + ")" : ButtonSpooling;
+                case CrunchPhase.Spooling: return ButtonPause;
+                case CrunchPhase.Paused: return ButtonResume;
                 case CrunchPhase.Ready: return "ENGAGE CRUNCH DRIVE (" + DirLong(backwards) + ")";
                 case CrunchPhase.Crunching: return ButtonStop;
                 default: return "START CASIMIR GENERATION (" + DirLong(backwards) + ")";
@@ -125,7 +128,7 @@ namespace CrunchDrives
         // Status
         public const string StatusIdle = "IDLE";
         public static string StatusIdleBecause(string reason) { return "IDLE (" + reason + ")"; }
-        public static string StatusSpooling(double elapsed, double tierC, double ecPerSecond, bool canEngage)
+        public static string StatusSpooling(double elapsed, double tierC, double ecPerSecond)
         {
             return string.Format(
                 "SPOOLING\nCASIMIR BLADES SPINNING UP.\n" +
@@ -134,7 +137,16 @@ namespace CrunchDrives
                 "{4}: {5}.\n",
                 FieldSpool, elapsed, FieldCoefficient, tierC,
                 FieldDraw, CrunchMath.FormatScaled(ecPerSecond, "EC/s", 1e6))
-                 + (canEngage ? "Engage on sufficient coefficient.\n" : "")
+                 + "Throttle and translation locked out.";
+        }
+        public static string StatusPaused(double elapsed, double tierC, bool canEngage)
+        {
+            return string.Format(
+                "PAUSED\nCASIMIR BLADES HALTED.\n" +
+                "{0}: {1:F1} s\n" +
+                "{2}: {3:G3}c\n",
+                FieldSpool, elapsed, FieldCoefficient, tierC)
+                 + (canEngage ? "Engage drive or resume spool\n" : "Resume spool to engage.\n")
                  + "Throttle and translation locked out.";
         }
         public const string StatusReady = "READY\nAwaiting engagement.";
@@ -175,7 +187,7 @@ namespace CrunchDrives
         {
             return string.Format("Spooling Casimir blades... ({0:F1} s).", seconds);
         }
-        public const string MsgSpoolStartOpen = "spooling Casimir blades...";
+        public const string MsgSpoolStartOpen = "Spooling Casimir blades...";
         public static string MsgSpoolDry(double tierC)
         {
             return string.Format("Craft EC ran dry. Coefficient achieved: {0:G3}c.", tierC);
@@ -184,6 +196,11 @@ namespace CrunchDrives
         {
             return string.Format("Casimir blades saturated. Coefficient achieved: {0:G3}c.", tierC);
         }
+        public static string MsgSpoolPaused(double tierC)
+        {
+            return string.Format("Casimir blades halted. Coefficient achieved: {0:G3}c.", tierC);
+        }
+        public const string MsgSpoolResumed = "Resuming spool...";
         public static string MsgEngaged(string dir) { return "Crunch field engaged (" + dir + ")."; }
         public static string MsgRefused(string reason) { return "Crunch refused: " + reason; }
         public static string MsgEnded(string reason) { return "Crunch ended: " + reason + " Engine controls restored."; }

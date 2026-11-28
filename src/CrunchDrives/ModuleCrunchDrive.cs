@@ -78,6 +78,11 @@ namespace CrunchDrives
             if (IsPrimary()) PushSettings();
             CrunchController.Engage();
         }
+        [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonPause, active = false, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
+        public void PauseEvent()
+        {
+            CrunchController.TogglePause();
+        }
         [KSPEvent(guiActive = true, guiActiveEditor = false, guiName = CrunchText.ButtonStart, active = true, groupName = MainGroup, groupDisplayName = CrunchText.GroupTitle)]
         public void SpoolEvent()
         {
@@ -105,6 +110,12 @@ namespace CrunchDrives
         public void CancelAction(KSPActionParam param)
         {
             CrunchController.Cancel();
+        }
+        [KSPAction(CrunchText.ButtonEngage)]
+        public void EngageAction(KSPActionParam param)
+        {
+            if (IsPrimary()) PushSettings();
+            CrunchController.Engage();
         }
         [KSPField(guiActive = true, guiActiveEditor = false, guiName = CrunchText.FieldTarget, groupName = TargetGroup, groupDisplayName = CrunchText.GroupTargetTitle)]
         public string targetLine = CrunchText.TargetNone;
@@ -155,7 +166,7 @@ namespace CrunchDrives
             nameof(targetLine), nameof(distanceLine), nameof(rangeLine), nameof(spoolDraw),
             nameof(gravityWellLine), nameof(travelMode), nameof(captureAssist), nameof(sasRetrograde), nameof(dropoutAltKm)
         };
-        static readonly string[] ButtonEvents = { nameof(EngageEvent), nameof(SpoolEvent), nameof(ExitEvent), nameof(DirectionEvent), nameof(FillHalfEvent), nameof(FillFullEvent) };
+        static readonly string[] ButtonEvents = { nameof(EngageEvent), nameof(PauseEvent), nameof(SpoolEvent), nameof(ExitEvent), nameof(DirectionEvent), nameof(FillHalfEvent), nameof(FillFullEvent) };
         CrunchTube tube;
         bool tubeWasSpooling;
         float tubeIntensity;
@@ -342,6 +353,7 @@ namespace CrunchDrives
             PushSettings();
             bool turning = CrunchController.IsTurning;
             bool spooling = CrunchController.IsSpooling;
+            bool paused = CrunchController.IsPaused;
             bool crunching = phase == CrunchPhase.Crunching;
             bool field = crunching && !turning;
             bool hasTarget = CrunchController.TargetName.Length > 0;
@@ -352,9 +364,9 @@ namespace CrunchDrives
             bool dir = EffectiveBackwards();
             statusLine = CrunchText.PhaseWord(phase, turning, spooling);
             coefficientLine = CrunchText.FieldCoefficientValue(CrunchController.ActiveTierC);
-            SetVisible(nameof(coefficientLine), spooling || phase == CrunchPhase.Ready);
+            SetVisible(nameof(coefficientLine), spooling || paused || phase == CrunchPhase.Ready);
             spoolLine = CrunchText.FieldSpoolValue(CrunchController.SpoolSecondsPaid);
-            SetVisible(nameof(spoolLine), spooling);
+            SetVisible(nameof(spoolLine), spooling || paused);
             SetVisible(nameof(spoolDraw), !crunching);
             legLine = CrunchText.FieldLegValue(CrunchController.CurrentLeg, CrunchController.ActiveBackwards);
             SetVisible(nameof(legLine), CrunchController.IsTwoLeg);
@@ -375,7 +387,7 @@ namespace CrunchDrives
             distanceLine = CrunchText.DistanceToStop(CrunchController.TargetStopMeters, CrunchController.TargetIsBody);
             SetVisible(nameof(distanceLine), hasTarget);
             rangeLine = CrunchText.FieldRangeValue(crunchSeconds, CrunchController.ActiveTierC);
-            SetVisible(nameof(rangeLine), manual && ManualSetsTime() && (phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready));
+            SetVisible(nameof(rangeLine), manual && ManualSetsTime() && (phase == CrunchPhase.Spooling || paused || phase == CrunchPhase.Ready));
             bool well = CrunchController.GravityWellName.Length > 0;
             if (well)
             {
@@ -394,14 +406,16 @@ namespace CrunchDrives
             SetVisible(nameof(sasRetrograde), true);
             SetVisible(nameof(dropoutAltKm), !crunching);
             ShowManualFields(manual && !crunching);
-            bool fill = manual && !crunching && hasTarget && ManualSetsTime() && (ManualSetsSpeed() || phase == CrunchPhase.Ready);
+            bool fill = manual && !crunching && hasTarget && ManualSetsTime() && (ManualSetsSpeed() || phase == CrunchPhase.Ready || paused);
             SetEventActive(nameof(FillHalfEvent), fill);
             SetEventActive(nameof(FillFullEvent), fill);
             BaseEvent engage = Events[nameof(EngageEvent)];
             engage.guiName = CrunchText.PrimaryButton(CrunchPhase.Ready, dir);
             SetEventActive(nameof(EngageEvent), CrunchController.CanEngage);
+            SetEventName(nameof(PauseEvent), paused ? CrunchText.ButtonResume : CrunchText.ButtonPause);
+            SetEventActive(nameof(PauseEvent), phase == CrunchPhase.Spooling || paused);
             Events[nameof(SpoolEvent)].guiName = phase == CrunchPhase.Idle ? CrunchText.ButtonStart : CrunchText.ButtonCancel;
-            SetEventActive(nameof(SpoolEvent), !crunching);
+            SetEventActive(nameof(SpoolEvent), phase == CrunchPhase.Idle || paused || phase == CrunchPhase.Ready);
             Events[nameof(ExitEvent)].guiName = CrunchText.PrimaryButton(CrunchPhase.Crunching, dir, turning);
             SetEventActive(nameof(ExitEvent), crunching);
             Events[nameof(DirectionEvent)].guiName = CrunchText.ButtonDirection(dir);
@@ -445,7 +459,7 @@ namespace CrunchDrives
             float target = 0f;
             if (vessel == FlightGlobals.ActiveVessel)
             {
-                if (CrunchController.IsSpooling) target = Mathf.Clamp01((float)CrunchController.SpoolFraction);
+                if (CrunchController.IsSpooling || phase == CrunchPhase.Paused) target = Mathf.Clamp01((float)CrunchController.SpoolFraction);
                 else if (phase == CrunchPhase.Ready || (phase == CrunchPhase.Crunching && !CrunchController.IsTurning)) target = 1f;
             }
             if (target >= glow) glow = target;
@@ -513,6 +527,13 @@ namespace CrunchDrives
             BaseEvent e = Events[name];
             if (e == null || e.active == on) return;
             e.active = on;
+            menuDirty = true;
+        }
+        void SetEventName(string name, string text)
+        {
+            BaseEvent e = Events[name];
+            if (e == null || e.guiName == text) return;
+            e.guiName = text;
             menuDirty = true;
         }
         void RefreshMenuIfNeeded()

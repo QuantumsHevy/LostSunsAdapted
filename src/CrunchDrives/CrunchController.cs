@@ -2,7 +2,7 @@ using CrunchDrives.Core;
 using UnityEngine;
 namespace CrunchDrives
 {
-    public enum CrunchPhase { Idle, Spooling, Ready, Crunching }
+    public enum CrunchPhase { Idle, Spooling, Paused, Ready, Crunching }
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class CrunchController : MonoBehaviour
     {
@@ -18,9 +18,10 @@ namespace CrunchDrives
             if (instance.phase == CrunchPhase.Idle) instance.DoPrimary();
             else instance.DoCancel();
         }
-        public static void Engage() { if (instance != null && CanEngage) instance.DoPrimary(); }
+        public static void Engage() { if (instance != null && CanEngage) instance.DoEngage(); }
+        public static void TogglePause() { if (instance != null) instance.DoPause(); }
         public static void Exit() { if (instance != null && instance.phase == CrunchPhase.Crunching) instance.DoPrimary(); }
-        public static bool CanEngage { get { return instance != null && (instance.phase == CrunchPhase.Ready || CanEngageFromSpool); } }
+        public static bool CanEngage { get { return instance != null && (instance.phase == CrunchPhase.Ready || CanEngageFromPause); } }
         public static bool IsTurning { get { return instance != null && instance.turning; } }
         public static string TargetName = "";
         public static double TargetStopMeters = -1.0;
@@ -33,10 +34,11 @@ namespace CrunchDrives
                 return instance.phase == CrunchPhase.Spooling || (instance.phase == CrunchPhase.Crunching && instance.turning && instance.turnSpooling);
             }
         }
-        public static double SpoolElapsed { get { return instance != null && IsSpooling ? instance.spoolElapsed : 0.0; } }
-        public static double SpoolSecondsPaid { get { return instance != null && IsSpooling ? instance.spoolSeconds : 0.0; } }
-        public static double SpoolFraction { get { return instance != null && IsSpooling ? System.Math.Min(1.0, instance.spoolSeconds / instance.stats.GlowSpoolSeconds) : 0.0; } }
-        public static bool CanEngageFromSpool { get { return instance != null && instance.phase == CrunchPhase.Spooling && instance.spoolSeconds >= instance.stats.MinSpoolSeconds && !instance.spoolHoldsForSpeed; } }
+        public static bool IsPaused { get { return instance != null && instance.phase == CrunchPhase.Paused; } }
+        public static double SpoolElapsed { get { return instance != null && IsSpooling ? instance.spoolElapsed - instance.spoolRunBase : 0.0; } }
+        public static double SpoolSecondsPaid { get { return instance != null && (IsSpooling || IsPaused) ? instance.spoolSeconds : 0.0; } }
+        public static double SpoolFraction { get { return instance != null && (IsSpooling || IsPaused) ? System.Math.Min(1.0, instance.spoolSeconds / instance.stats.GlowSpoolSeconds) : 0.0; } }
+        public static bool CanEngageFromPause { get { return IsPaused && instance.spoolSeconds >= instance.stats.MinSpoolSeconds && !instance.spoolHoldsForSpeed; } }
         public static double LiveSpeedC { get { return instance != null && instance.phase == CrunchPhase.Crunching ? instance.activeTier * instance.CurveSpeedFactor() : 0.0; } }
         public static double LegElapsed { get { return instance != null ? instance.elapsed : 0.0; } }
         public static bool IsOpenEnded { get { return instance != null && instance.phase == CrunchPhase.Crunching && instance.openEnded; } }
@@ -47,7 +49,7 @@ namespace CrunchDrives
             get
             {
                 if (instance == null) return CrunchTuning.MinSpeedC;
-                if (IsSpooling) return instance.SpoolTierFor(instance.spoolSeconds);
+                if (IsSpooling || IsPaused) return instance.SpoolTierFor(instance.spoolSeconds);
                 switch (instance.phase)
                 {
                     case CrunchPhase.Crunching: return instance.activeTier;
@@ -126,6 +128,7 @@ namespace CrunchDrives
         double capRate;
         double capElapsed;
         double spoolElapsed;
+        double spoolRunBase;
         double spoolSeconds;
         double spoolTarget;
         double spoolCharge;
@@ -233,6 +236,7 @@ namespace CrunchDrives
             double c;
             if (CrunchTuning.ManualSetSpeed) c = System.Math.Max(st.MinSpeedC, System.Math.Min(st.MaxSpeedC, CrunchTuning.ManualSpeedC));
             else if (instance != null && instance.phase == CrunchPhase.Ready) c = instance.spoolTier;
+            else if (instance != null && instance.phase == CrunchPhase.Paused) c = instance.SpoolTierFor(instance.spoolSeconds);
             else return false;
             double meters = StopDistance(v.targetObject, (tp - v.GetWorldPos3D()).magnitude) * share;
             seconds = CrunchMath.SecondsToCover(c, st.MaxSpeedC, st.RampSeconds, meters, st.MinCrunchSeconds);
@@ -244,6 +248,7 @@ namespace CrunchDrives
             spoolSeconds = 0.0;
             spoolCharge = 0.0;
             spoolElapsed = 0.0;
+            spoolRunBase = 0.0;
             spoolFinished = false;
             spoolDryTime = 0.0;
             spoolLastUt = -1.0;
@@ -278,7 +283,7 @@ namespace CrunchDrives
             }
             return spoolSeconds >= spoolTarget * 0.9999;
         }
-        void FinishSpool(Vessel v, bool full, bool dry)
+        void FinishSpool(Vessel v, bool full)
         {
             spoolTier = SpoolTierFor(spoolSeconds);
             firstSpoolSeconds = spoolSeconds;
@@ -286,9 +291,8 @@ namespace CrunchDrives
             Status = CrunchText.StatusReady;
             ReleaseWarp();
             Debug.Log(string.Format("[CrunchDrive] Spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
-                spoolElapsed, full ? "full spool" : (dry ? "out of charge" : "engaged"), CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
-            if (full) Post(CrunchText.MsgSpoolFull(spoolTier));
-            else if (dry) Post(CrunchText.MsgSpoolDry(spoolTier));
+                spoolElapsed, full ? "full spool" : "out of charge", CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
+            Post(full ? CrunchText.MsgSpoolFull(spoolTier) : CrunchText.MsgSpoolDry(spoolTier));
         }
         bool StepTurnSpool(Vessel v, double dt)
         {
@@ -463,20 +467,55 @@ namespace CrunchDrives
             {
                 case CrunchPhase.Idle: StartSpool(v); break;
                 case CrunchPhase.Spooling:
-                    if (spoolSeconds >= stats.MinSpoolSeconds && !spoolHoldsForSpeed)
-                    {
-                        FinishSpool(v, false, false);
-                        TryEngage(v);
-                    }
-                    break;
+                case CrunchPhase.Paused: DoPause(); break;
                 case CrunchPhase.Ready: TryEngage(v); break;
                 case CrunchPhase.Crunching: End(CrunchText.StopByPlayer); break;
             }
         }
+        void DoPause()
+        {
+            if (phase == CrunchPhase.Spooling) PauseSpool();
+            else if (phase == CrunchPhase.Paused) ResumeSpool();
+        }
+        void DoEngage()
+        {
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null) return;
+            if (phase == CrunchPhase.Ready) { TryEngage(v); return; }
+            if (!CanEngageFromPause) return;
+            spoolTier = SpoolTierFor(spoolSeconds);
+            firstSpoolSeconds = spoolSeconds;
+            if (TryEngage(v))
+                Debug.Log(string.Format("[CrunchDrive] Engaged from pause after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c.",
+                    spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
+        }
         void DoCancel()
         {
-            if (phase == CrunchPhase.Spooling || phase == CrunchPhase.Ready)
+            if (phase == CrunchPhase.Paused || phase == CrunchPhase.Ready)
                 End(CrunchText.StopByPlayer);
+        }
+        void PauseSpool()
+        {
+            spoolTier = SpoolTierFor(spoolSeconds);
+            phase = CrunchPhase.Paused;
+            spoolLastUt = -1.0;
+            spoolDryTime = 0.0;
+            Status = CrunchText.StatusPaused(spoolSeconds, spoolTier, CanEngageFromPause);
+            Debug.Log(string.Format("[CrunchDrive] Spool paused after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c held, {4} left on the craft.",
+                spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier, CrunchMath.FormatScaled(ReadStored(crunchVessel), "EC", 1e6)));
+            Post(CrunchText.MsgSpoolPaused(spoolTier));
+        }
+        void ResumeSpool()
+        {
+            phase = CrunchPhase.Spooling;
+            spoolLastUt = -1.0;
+            spoolRunBase = spoolElapsed;
+            spoolDryTime = 0.0;
+            spoolRate = DrawRateFor(crunchVessel);
+            Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate);
+            Debug.Log(string.Format("[CrunchDrive] Spool resumed at {0:F1} spool seconds ({1:G4}c), drawing {2}.",
+                spoolSeconds, SpoolTierFor(spoolSeconds), CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6)));
+            Post(CrunchText.MsgSpoolResumed);
         }
         bool TryPlan(Vessel v, bool announce, bool engaging, out CrunchPlan plan)
         {
@@ -562,7 +601,7 @@ namespace CrunchDrives
             double ramp = open ? 0.0 : RampFor(duration);
             bool warpOk = !open && duration >= CrunchTuning.WarpMinLegSeconds;
             if (TimeWarp.CurrentRate > 1.0f &&
-                !(warpOk && CrunchSettings.AllowWarp && phase == CrunchPhase.Ready))
+                !(warpOk && CrunchSettings.AllowWarp && (phase == CrunchPhase.Ready || phase == CrunchPhase.Paused)))
             {
                 if (engaging)
                 {
@@ -625,17 +664,17 @@ namespace CrunchDrives
             BeginSpool(v, spoolFor);
             phase = CrunchPhase.Spooling;
             LockOutEngines(v);
-            Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate, false);
+            Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate);
             Debug.Log(string.Format("[CrunchDrive] Spool: drawing {0} ({6} per spool second) from {1} stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
                 CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), CrunchMath.FormatScaled(stored, "EC", 1e6), stats.MinSpeedC, stats.MinSpoolSeconds, stats.MaxSpeedC, stats.MaxSpoolSeconds, CrunchMath.FormatScaled(spoolNominal, "EC", 1e6)));
             Debug.Log(string.Format("[CrunchDrive] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4} above the surface, glow over {5:F1} spool seconds.",
                 stats.RampSeconds, stats.TargetAlignToleranceDeg, stats.MinCrunchSeconds, stats.CaptureSpeedFraction, CrunchMath.FormatScaled(stats.CaptureSafeAltitude, "m"), stats.GlowSpoolSeconds));
             Post(CrunchText.MsgSpoolStartOpen);
         }
-        void TryEngage(Vessel v)
+        bool TryEngage(Vessel v)
         {
             CrunchPlan plan;
-            if (!TryPlan(v, true, true, out plan)) return;
+            if (!TryPlan(v, true, true, out plan)) return false;
             activeTier = plan.tier;
             activeWarpOk = plan.warpOk;
             activeDuration = plan.duration;
@@ -670,6 +709,7 @@ namespace CrunchDrives
                 latchedHeading.x, latchedHeading.y, latchedHeading.z, CrunchText.DirShort(crunchBackwards),
                 targetLocked ? " (target lock)" : "", twoLeg ? " (leg 1 of 2)" : ""));
             Post(CrunchText.MsgEngaged(CrunchText.DirShort(crunchBackwards)));
+            return true;
         }
         void NoteDepartingZones(Vessel v)
         {
@@ -804,7 +844,7 @@ namespace CrunchDrives
                 else
                 {
                     if (TimeWarp.CurrentRate > 1.0f) StepWarpDown(SpoolSecondsLeft(), CrunchTuning.WarpSpoolFinalSeconds);
-                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, false);
+                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate);
                 }
                 return;
             }
@@ -849,7 +889,7 @@ namespace CrunchDrives
             {
                 if (!StepTurnSpool(v, dt))
                 {
-                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, false);
+                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate);
                     return;
                 }
             }
@@ -1219,6 +1259,7 @@ namespace CrunchDrives
         {
             if (!CrunchSettings.AllowWarp) return false;
             if (phase == CrunchPhase.Spooling) return true;
+            if (phase == CrunchPhase.Paused) return true;
             if (phase == CrunchPhase.Ready) return true;
             if (phase != CrunchPhase.Crunching) return false;
             if (turning) return turnSpooling && (!CrunchSettings.LooseStart || turnSettled >= CrunchTuning.TurnSettleSeconds);
@@ -1266,7 +1307,7 @@ namespace CrunchDrives
             {
                 if (StepSpool(v, dt))
                 {
-                    FinishSpool(v, true, false);
+                    FinishSpool(v, true);
                 }
                 else if (SpoolRanDry())
                 {
@@ -1278,14 +1319,19 @@ namespace CrunchDrives
                     }
                     else
                     {
-                        FinishSpool(v, false, true);
+                        FinishSpool(v, false);
                     }
                 }
                 else
                 {
                     if (TimeWarp.CurrentRate > 1.0f) StepWarpDown(SpoolSecondsLeft(), CrunchTuning.WarpSpoolFinalSeconds);
-                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate, spoolSeconds >= stats.MinSpoolSeconds && !spoolHoldsForSpeed);
+                    Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate);
                 }
+                return;
+            }
+            if (phase == CrunchPhase.Paused)
+            {
+                Status = CrunchText.StatusPaused(spoolSeconds, spoolTier, CanEngageFromPause);
                 return;
             }
             if (phase == CrunchPhase.Ready)
