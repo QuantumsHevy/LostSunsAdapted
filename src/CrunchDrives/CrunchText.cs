@@ -250,45 +250,49 @@ namespace CrunchDrives
         public static string StopNearVessel(string vessel) { return "The crunch ended near " + vessel + "."; }
         public static string StopDropout(string body) { return "The crunch ended near " + body + "."; }
         // Debug Logs
-        public const string LogBootstrapPassed = "[LSA][CrunchDrives] Bootstrap passed";
+        public const string LogBootstrapPassed = "[LSA] [CrunchDrives] Bootstrap passed";
         public static string LogFlightSceneEntered(string vessel)
         {
-            return string.Format("[LSA][CrunchDrives] {0} entered the flight scene", vessel);
+            return string.Format("[LSA] [CrunchDrives] {0} entered the flight scene", vessel);
         }
-        public const string LogSettingsMissing = "[LSA][CrunchDrives] Settings.cfg not found, using defaults";
+        public const string LogSettingsMissing = "[LSA] [CrunchDrives] Settings.cfg not found, using defaults";
         public static string LogSettingsBadValue(string key, string value)
         {
-            return string.Format("[LSA][CrunchDrives] Settings.cfg: unusable value '{1}' for {0}, using the default", key, value);
+            return string.Format("[LSA] [CrunchDrives] Settings.cfg: unusable value '{1}' for {0}, using the default", key, value);
         }
         public static string LogSettingsLoaded(bool warp, bool nearby, bool controller, double multiplier, bool loose, bool ignore)
         {
-            return string.Format("[LSA][CrunchDrives] Settings.cfg: time warp {0}, nearby craft {1}, turn controller {2}, dropout multiplier {3:G4}, loose start {4}, ignore dropout spheres {5}", warp, nearby, controller, multiplier, loose, ignore);
+            return string.Format("[LSA] [CrunchDrives] Settings.cfg: time warp {0}, nearby craft {1}, turn controller {2}, dropout multiplier {3:G4}, loose start {4}, ignore dropout spheres {5}", warp, nearby, controller, multiplier, loose, ignore);
         }
-        public const string LogSpheresIgnored = "[LSA][CrunchDrives] Dropout spheres ignored for this crunch (PLAYER ASSUMES RISK OF PHYSICS INSTABILITY)";
-        public const string LogNoGlowMaterial = "[LSA][CrunchDrives] No emissives found on part";
+        public const string LogSpheresIgnored = "[LSA] [CrunchDrives] Dropout spheres ignored for this crunch (PLAYER ASSUMES RISK OF PHYSICS INSTABILITY)";
+        public const string LogNoGlowMaterial = "[LSA] [CrunchDrives] No emissives found on part";
         public static string LogGlowMaterials(int materials, int renderers)
         {
-            return string.Format("[LSA][CrunchDrives] {0} material(s) of {1} included renderer(s) found on part", materials, renderers);
+            return string.Format("[LSA] [CrunchDrives] {0} material(s) of {1} included renderer(s) found on part", materials, renderers);
         }
-        public const string LogNoTubeShader = "[LSA][CrunchDrives] No particle shader found";
-        public const string LogTubeAdditive = "[LSA][CrunchDrives] Additive shader found";
+        public const string LogNoTubeShader = "[LSA] [CrunchDrives] No particle shader found";
+        public const string LogTubeAdditive = "[LSA] [CrunchDrives] Additive shader found";
         public static string LogTubeMeasured(double radius, double forward, double backward, double craftLength)
         {
-            return string.Format("[LSA][CrunchDrives] FX measured: radius {0:F1} m, fore length {1:F1} m, aft length {2:F1} m, total craft length {3:F1} m", radius, forward, backward, craftLength);
+            return string.Format("[LSA] [CrunchDrives] FX measured: radius {0:F1} m, fore length {1:F1} m, aft length {2:F1} m, total craft length {3:F1} m", radius, forward, backward, craftLength);
         }
         public static string LogTubeSources(int renderers, int parts, string forwardPart, double forwardAlong, double forwardRadial,
                                             string backwardPart, double backwardAlong, double backwardRadial)
         {
-            return string.Format("[LSA][CrunchDrives] FX measured from {0} mesh renderers on {1} parts; FWD end set by {2} ({3:F1} m along, {4:F1} m from axis). BWD end set by {5} ({6:F1} m along, {7:F1} m from axis)",
+            return string.Format("[LSA] [CrunchDrives] FX measured from {0} mesh renderers on {1} parts; FWD end set by {2} ({3:F1} m along, {4:F1} m from axis). BWD end set by {5} ({6:F1} m along, {7:F1} m from axis)",
                 renderers, parts, forwardPart, forwardAlong, forwardRadial, backwardPart, backwardAlong, backwardRadial);
         }
         public static string LogTubeWidest(string part, string source, double radial)
         {
-            return string.Format("[LSA][CrunchDrives] FX radius set by {0} ({1}, {2:F1} m from axis)", part, source, radial);
+            return string.Format("[LSA] [CrunchDrives] FX radius set by {0} ({1}, {2:F1} m from axis)", part, source, radial);
+        }
+        public static string LogTubeWidestVertices(int total, int outer, int mid)
+        {
+            return string.Format("[LSA] [CrunchDrives] FX widest renderer: {0} vertices; {1} beyond 95% of radius, {2} beyond 75%", total, outer, mid);
         }
         public static string LogTubePoking(int corners)
         {
-            return "[LSA][CrunchDrives] " + corners + " corners of this craft are wider than FX";
+            return "[LSA] [CrunchDrives] " + corners + " corners of this craft are wider than FX";
         }
     }
 }

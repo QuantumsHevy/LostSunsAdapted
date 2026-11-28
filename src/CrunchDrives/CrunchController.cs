@@ -290,7 +290,7 @@ namespace CrunchDrives
             phase = CrunchPhase.Ready;
             Status = CrunchText.StatusReady;
             ReleaseWarp();
-            Debug.Log(string.Format("[CrunchDrive] Spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
                 spoolElapsed, full ? "full spool" : "out of charge", CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
             Post(full ? CrunchText.MsgSpoolFull(spoolTier) : CrunchText.MsgSpoolDry(spoolTier));
         }
@@ -301,7 +301,7 @@ namespace CrunchDrives
             if (!full && !dry) return false;
             spoolFinished = true;
             spoolTier = SpoolTierFor(spoolSeconds);
-            Debug.Log(string.Format("[CrunchDrive] Second spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Second spool done in {0:F1} s ({1}): {2} drawn, {3:F1} spool seconds paid for, coefficient {4:G4}c.",
                 spoolElapsed, full ? "full spool" : "out of charge", CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
             if (dry) Post(CrunchText.MsgSpoolDry(spoolTier));
             return true;
@@ -486,7 +486,7 @@ namespace CrunchDrives
             spoolTier = SpoolTierFor(spoolSeconds);
             firstSpoolSeconds = spoolSeconds;
             if (TryEngage(v))
-                Debug.Log(string.Format("[CrunchDrive] Engaged from pause after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c.",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Engaged from pause after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c.",
                     spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier));
         }
         void DoCancel()
@@ -501,7 +501,7 @@ namespace CrunchDrives
             spoolLastUt = -1.0;
             spoolDryTime = 0.0;
             Status = CrunchText.StatusPaused(spoolSeconds, spoolTier, CanEngageFromPause);
-            Debug.Log(string.Format("[CrunchDrive] Spool paused after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c held, {4} left on the craft.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Spool paused after {0:F1} s: {1} drawn, {2:F1} spool seconds paid for, coefficient {3:G4}c held, {4} left on the craft.",
                 spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), spoolSeconds, spoolTier, CrunchMath.FormatScaled(ReadStored(crunchVessel), "EC", 1e6)));
             Post(CrunchText.MsgSpoolPaused(spoolTier));
         }
@@ -513,7 +513,7 @@ namespace CrunchDrives
             spoolDryTime = 0.0;
             spoolRate = DrawRateFor(crunchVessel);
             Status = CrunchText.StatusSpooling(spoolSeconds, SpoolTierFor(spoolSeconds), spoolRate);
-            Debug.Log(string.Format("[CrunchDrive] Spool resumed at {0:F1} spool seconds ({1:G4}c), drawing {2}.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Spool resumed at {0:F1} spool seconds ({1:G4}c), drawing {2}.",
                 spoolSeconds, SpoolTierFor(spoolSeconds), CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6)));
             Post(CrunchText.MsgSpoolResumed);
         }
@@ -558,7 +558,7 @@ namespace CrunchDrives
                     targetDistance = to.magnitude;
                     targetName = target.GetDisplayName().Replace("^N", "");
                     if (announce)
-                        Debug.Log(string.Format("[CrunchDrive] Target lock: {0} distance={1:E3}m alignment={2:F2}deg",
+                        Debug.Log(string.Format("[LSA] [CrunchDrives] Target lock: {0} distance={1:E3}m alignment={2:F2}deg",
                             targetName, targetDistance, err));
                 }
             }
@@ -615,7 +615,7 @@ namespace CrunchDrives
                 }
             }
             if (announce)
-                Debug.Log(string.Format("[CrunchDrive] {0}: {1}{2}, compression coefficient {3:G4}c (peak {4:G4}c), leg {5:F2} s, ramps {7:F2} s{6}",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] {0}: {1}{2}, compression coefficient {3:G4}c (peak {4:G4}c), leg {5:F2} s, ramps {7:F2} s{6}",
                     twoLegPlan ? "Two-leg maneuver" : "Travel mode " + CrunchTuning.Mode,
                     open ? "no set duration" : (timed ? "fixed time" : string.Format("{0:E3} m", meters)),
                     twoLegPlan ? " for the first leg" : "",
@@ -658,16 +658,16 @@ namespace CrunchDrives
                 double setC = System.Math.Max(stats.MinSpeedC, System.Math.Min(stats.MaxSpeedC, CrunchTuning.ManualSpeedC));
                 spoolFor = CrunchMath.SpoolSecondsForCoefficient(setC, stats.MinSpeedC, stats.MaxSpeedC, stats.MinSpoolSeconds, stats.MaxSpoolSeconds);
                 spoolHoldsForSpeed = spoolFor > stats.MinSpoolSeconds;
-                Debug.Log(string.Format("[CrunchDrive] Manual speed {0:G4}c: the spool runs for {1:F1} spool seconds{2}.",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Manual speed {0:G4}c: the spool runs for {1:F1} spool seconds{2}.",
                     setC, spoolFor, spoolHoldsForSpeed ? " and cannot be engaged before then" : ""));
             }
             BeginSpool(v, spoolFor);
             phase = CrunchPhase.Spooling;
             LockOutEngines(v);
             Status = CrunchText.StatusSpooling(0, stats.MinSpeedC, spoolRate);
-            Debug.Log(string.Format("[CrunchDrive] Spool: drawing {0} ({6} per spool second) from {1} stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Spool: drawing {0} ({6} per spool second) from {1} stored; the coefficient rises from {2:G3}c ({3:F0} s) to {4:G3}c ({5:F0} s).",
                 CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), CrunchMath.FormatScaled(stored, "EC", 1e6), stats.MinSpeedC, stats.MinSpoolSeconds, stats.MaxSpeedC, stats.MaxSpoolSeconds, CrunchMath.FormatScaled(spoolNominal, "EC", 1e6)));
-            Debug.Log(string.Format("[CrunchDrive] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4} above the surface, glow over {5:F1} spool seconds.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Drive stats: ramps {0:F1} s, aim tolerance {1:F1} deg, shortest leg {2:F2} s, capture at {3:P1} of escape speed and {4} above the surface, glow over {5:F1} spool seconds.",
                 stats.RampSeconds, stats.TargetAlignToleranceDeg, stats.MinCrunchSeconds, stats.CaptureSpeedFraction, CrunchMath.FormatScaled(stats.CaptureSafeAltitude, "m"), stats.GlowSpoolSeconds));
             Post(CrunchText.MsgSpoolStartOpen);
         }
@@ -705,7 +705,7 @@ namespace CrunchDrives
             ResetWindow(v);
             NoteDepartingZones(v);
             phase = CrunchPhase.Crunching;
-            Debug.Log(string.Format("[CrunchDrive] Heading latched ({0:F4}, {1:F4}, {2:F4}) {3}{4}{5}",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Heading latched ({0:F4}, {1:F4}, {2:F4}) {3}{4}{5}",
                 latchedHeading.x, latchedHeading.y, latchedHeading.z, CrunchText.DirShort(crunchBackwards),
                 targetLocked ? " (target lock)" : "", twoLeg ? " (leg 1 of 2)" : ""));
             Post(CrunchText.MsgEngaged(CrunchText.DirShort(crunchBackwards)));
@@ -721,7 +721,7 @@ namespace CrunchDrives
                 double r = DropoutRadius(b);
                 if ((p - b.position).sqrMagnitude >= r * r) continue;
                 departingZones.Add(b);
-                Debug.Log(string.Format("[CrunchDrive] Loosened start: leaving {0}'s dropout zone ({1} from its centre, zone radius {2}); it is not scanned until the craft is clear.",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Loosened start: leaving {0}'s dropout zone ({1} from its centre, zone radius {2}); it is not scanned until the craft is clear.",
                     b.name, CrunchMath.FormatScaled((p - b.position).magnitude, "m"), CrunchMath.FormatScaled(r, "m")));
             }
         }
@@ -740,7 +740,7 @@ namespace CrunchDrives
                 sasPrevMode = v.Autopilot != null ? v.Autopilot.Mode : VesselAutopilot.AutopilotMode.StabilityAssist;
                 sasChanged = true;
             }
-            Debug.Log(string.Format("[CrunchDrive] First leg complete after {0:E3} m. Turning to face away from {1}.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] First leg complete after {0:E3} m. Turning to face away from {1}.",
                 traveled, lockedTargetName));
             Post(CrunchText.MsgFirstLegDone);
         }
@@ -749,7 +749,7 @@ namespace CrunchDrives
             if (TimeWarp.CurrentRate > 1.0f)
             {
                 TimeWarp.SetRate(0, true);
-                Debug.Log("[CrunchDrive] " + CrunchText.MsgWarpDropped);
+                Debug.Log("[LSA] [CrunchDrives] " + CrunchText.MsgWarpDropped);
             }
         }
         void EnforceWarpLock()
@@ -762,7 +762,7 @@ namespace CrunchDrives
             else if (phase == CrunchPhase.Crunching && turning) why = CrunchText.MsgWarpLockedTurning;
             else if (phase == CrunchPhase.Crunching && openEnded) why = CrunchText.MsgWarpLockedOpen;
             else why = CrunchText.MsgWarpLockedShort;
-            Debug.Log(string.Format("[CrunchDrive] Time warp ({0:G}x) locked out: phase {1}, leg {2}, turning={3}, leg length {4:F1} s, warp-capable={5}. Back to 1x.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Time warp ({0:G}x) locked out: phase {1}, leg {2}, turning={3}, leg length {4:F1} s, warp-capable={5}. Back to 1x.",
                 rate, phase, leg, turning, activeDuration, activeWarpOk));
             if (Time.unscaledTime - lastWarpLockPost >= WarpLockPostGapSeconds)
             {
@@ -786,12 +786,12 @@ namespace CrunchDrives
             {
                 autopilot.SetMode(VesselAutopilot.AutopilotMode.AntiTarget);
                 sasFailLogged = false;
-                Debug.Log("[CrunchDrive] SAS set to anti-target.");
+                Debug.Log("[LSA] [CrunchDrives] SAS set to anti-target.");
             }
             else if (!sasFailLogged)
             {
                 sasFailLogged = true;
-                Debug.Log("[CrunchDrive] SAS cannot hold anti-target on this craft right now; will keep trying.");
+                Debug.Log("[LSA] [CrunchDrives] SAS cannot hold anti-target on this craft right now; will keep trying.");
             }
         }
         void RestoreSas(Vessel v)
@@ -807,7 +807,7 @@ namespace CrunchDrives
             {
                 v.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
             }
-            Debug.Log("[CrunchDrive] SAS restored to its previous setting.");
+            Debug.Log("[LSA] [CrunchDrives] SAS restored to its previous setting.");
         }
         bool BeginTurnSpool(Vessel v, double distance)
         {
@@ -815,7 +815,7 @@ namespace CrunchDrives
             if (remaining0 <= 0.0) { End(StopAt(lockedTarget, lockedTargetName), true); return false; }
             turnSpooling = true;
             BeginSpool(v, firstSpoolSeconds);
-            Debug.Log(string.Format("[CrunchDrive] Second spool{5}: drawing {0} for {1:F1} s to match the first leg's {2:G4}c, {3} stored, {4} to go.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Second spool{5}: drawing {0} for {1:F1} s to match the first leg's {2:G4}c, {3} stored, {4} to go.",
                 CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), firstSpoolSeconds, SpoolTierFor(firstSpoolSeconds), CrunchMath.FormatScaled(ReadStored(v), "EC", 1e6), CrunchMath.FormatScaled(remaining0, "m"),
                 CrunchSettings.LooseStart ? " (loosened: spooling while the craft is still turning)" : ""));
             Post(CrunchText.MsgSpoolStart(firstSpoolSeconds));
@@ -872,7 +872,7 @@ namespace CrunchDrives
             if (turnLogTimer >= 1.0)
             {
                 turnLogTimer = 0.0;
-                Debug.Log(string.Format("[CrunchDrive] Turning ({0}): crunch axis {1:F1} deg off the target, turning at {2:F2} deg/s.",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Turning ({0}): crunch axis {1:F1} deg off the target, turning at {2:F2} deg/s.",
                     useController ? (turnCtl.Calibrated ? "controller" : "calibrating") : "SAS", err, rate));
             }
             bool calibrating = useController && !turnCtl.Calibrated;
@@ -923,7 +923,7 @@ namespace CrunchDrives
             turning = false;
             logTimer = 0.0;
             ResetWindow(v);
-            Debug.Log(string.Format("[CrunchDrive] Aligned ({0:F2} deg, {1:F2} deg/s). Second leg: {2:E3} m in {3:F2} s at {4:G4}c, backwards.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Aligned ({0:F2} deg, {1:F2} deg/s). Second leg: {2:E3} m in {3:F2} s at {4:G4}c, backwards.",
                 err, rate, remaining, duration, tier));
             Post(CrunchText.MsgSecondLeg);
         }
@@ -946,12 +946,12 @@ namespace CrunchDrives
             VesselAutopilot autopilot = v.Autopilot;
             if (autopilot == null || !autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Retrograde))
             {
-                Debug.Log("[CrunchDrive] SAS cannot hold retrograde on this craft; leaving SAS alone.");
+                Debug.Log("[LSA] [CrunchDrives] SAS cannot hold retrograde on this craft; leaving SAS alone.");
                 return;
             }
             FlightGlobals.SetSpeedMode(relativeToTarget ? FlightGlobals.SpeedDisplayModes.Target : FlightGlobals.SpeedDisplayModes.Orbit);
             autopilot.SetMode(VesselAutopilot.AutopilotMode.Retrograde);
-            Debug.Log("[CrunchDrive] SAS set to retrograde" + (relativeToTarget ? " (relative to the target)." : "."));
+            Debug.Log("[LSA] [CrunchDrives] SAS set to retrograde" + (relativeToTarget ? " (relative to the target)." : "."));
         }
         double SafePeriapsisRadius(CelestialBody b)
         {
@@ -991,14 +991,14 @@ namespace CrunchDrives
             double rp;
             if (IsCaptured(body, r, vel, out rp))
             {
-                Debug.Log(string.Format("[CrunchDrive] No capture assistance needed at {0}: bound, periapsis radius {1:E3} m.", body.name, rp));
+                Debug.Log(string.Format("[LSA] [CrunchDrives] No capture assistance needed at {0}: bound, periapsis radius {1:E3} m.", body.name, rp));
                 return false;
             }
             Vector3d target = CaptureTargetVelocity(body, r, vel);
             Vector3d dv = target - vel;
             capBody = body;
             capElapsed = 0.0;
-            Debug.Log(string.Format("[CrunchDrive] Capture assistance at {0}: {1:F0} -> {2:F0} m/s (radius {3:E3} m, periapsis radius now {4:E3} m, direction change {5:F1} deg)",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Capture assistance at {0}: {1:F0} -> {2:F0} m/s (radius {3:E3} m, periapsis radius now {4:E3} m, direction change {5:F1} deg)",
                 body.name, vel.magnitude, target.magnitude, r.magnitude, rp, AngleDeg(vel, target)));
             if (target.magnitude < vel.magnitude)
                 Post(CrunchText.MsgCaptureAssist(vel.magnitude, target.magnitude, body.name));
@@ -1006,18 +1006,18 @@ namespace CrunchDrives
             {
                 capRate = dv.magnitude / CrunchTuning.CaptureRampSeconds;
                 capturing = true;
-                Debug.Log(string.Format("[CrunchDrive] Spreading the velocity change over about {0:F1} s.", CrunchTuning.CaptureRampSeconds));
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Spreading the velocity change over about {0:F1} s.", CrunchTuning.CaptureRampSeconds));
             }
             else
             {
                 v.ChangeWorldVelocity(dv);
-                Debug.Log("[CrunchDrive] Velocity change applied.");
+                Debug.Log("[LSA] [CrunchDrives] Velocity change applied.");
             }
             return true;
         }
         void EndCapture(string why)
         {
-            Debug.Log("[CrunchDrive] Capture assistance finished: " + why);
+            Debug.Log("[LSA] [CrunchDrives] Capture assistance finished: " + why);
             capturing = false;
             capTarget = null;
         }
@@ -1050,14 +1050,14 @@ namespace CrunchDrives
             InterceptVelocities(v, tv, out relNow, out relWanted, out distance);
             if (OnIntercept(relNow, relWanted, distance))
             {
-                Debug.Log("[CrunchDrive] No intercept assistance needed: already closing on the target.");
+                Debug.Log("[LSA] [CrunchDrives] No intercept assistance needed: already closing on the target.");
                 return false;
             }
             Vector3d dv = relWanted - relNow;
             capTarget = tv;
             capElapsed = 0.0;
             string name = tv.GetDisplayName().Replace("^N", "");
-            Debug.Log(string.Format("[CrunchDrive] Intercept assistance with {0}: relative velocity {1:F0} -> {2:F0} m/s, distance {3:E3} m, direction change {4:F1} deg",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Intercept assistance with {0}: relative velocity {1:F0} -> {2:F0} m/s, distance {3:E3} m, direction change {4:F1} deg",
                 name, relNow.magnitude, relWanted.magnitude, distance, AngleDeg(relNow, relWanted)));
             Post(CrunchText.MsgIntercept(relNow.magnitude, relWanted.magnitude, name));
             if (CrunchTuning.CaptureRampSeconds > 0.0)
@@ -1121,7 +1121,7 @@ namespace CrunchDrives
         }
         void AbortArrival(string why)
         {
-            Debug.Log("[CrunchDrive] Arrival assistance cancelled: " + why);
+            Debug.Log("[LSA] [CrunchDrives] Arrival assistance cancelled: " + why);
             if (turnCtl.Running && arrivalSasWasOn && arrivalVessel != null && !arrivalVessel.ActionGroups[KSPActionGroup.SAS])
                 arrivalVessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             turnCtl.End();
@@ -1188,7 +1188,7 @@ namespace CrunchDrives
             else
                 aimSettled = 0.0;
             if (aimSettled < CrunchTuning.TurnSettleSeconds && aimIdle < CrunchTuning.ArrivalAimTimeoutSeconds) return true;
-            Debug.Log(string.Format("[CrunchDrive] Retrograde reached ({0:F2} deg off, {1:F2} deg/s){2}.", err, rate,
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Retrograde reached ({0:F2} deg off, {1:F2} deg/s){2}.", err, rate,
                 aimSettled < CrunchTuning.TurnSettleSeconds ? " - gave up waiting for it to settle" : ""));
             turnCtl.End();
             if (arrivalSasWasOn)
@@ -1279,7 +1279,7 @@ namespace CrunchDrives
             }
             if (TimeWarp.CurrentRateIndex > target)
             {
-                Debug.Log(string.Format("[CrunchDrive] Slowing time warp to {0:G}x ({1:F1} game seconds until it ends).",
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Slowing time warp to {0:G}x ({1:F1} game seconds until it ends).",
                     rates[target], gameSecondsLeft));
                 TimeWarp.SetRate(target, false, false);
             }
@@ -1313,7 +1313,7 @@ namespace CrunchDrives
                 {
                     if (spoolSeconds < stats.MinSpoolSeconds)
                     {
-                        Debug.Log(string.Format("[CrunchDrive] Spool ran dry after {0:F1} s: {1} drawn, asking for {2}, {3} left on the craft.",
+                        Debug.Log(string.Format("[LSA] [CrunchDrives] Spool ran dry after {0:F1} s: {1} drawn, asking for {2}, {3} left on the craft.",
                             spoolElapsed, CrunchMath.FormatScaled(spoolCharge, "EC", 1e6), CrunchMath.FormatScaled(spoolRate, "EC/s", 1e6), CrunchMath.FormatScaled(ReadStored(v), "EC", 1e6)));
                         End(CrunchText.StopNoCharge(spoolCharge));
                     }
@@ -1410,7 +1410,7 @@ namespace CrunchDrives
                 {
                     if ((p0 - centre).sqrMagnitude < radius * radius) continue;
                     departingZones.Remove(b);
-                    Debug.Log("[CrunchDrive] Clear of " + b.name + "'s dropout zone; scanning it again.");
+                    Debug.Log("[LSA] [CrunchDrives] Clear of " + b.name + "'s dropout zone; scanning it again.");
                 }
                 double? t = CrunchMath.SweepEntry(V(p0), V(p1), V(centre), radius);
                 if (t.HasValue && t.Value < bestT) { bestT = t.Value; hit = b; }
@@ -1435,7 +1435,7 @@ namespace CrunchDrives
             }
             if (v.mainBody.name != lastBodyName)
             {
-                Debug.Log("[CrunchDrive] Reference body changed: " + lastBodyName + " -> " + v.mainBody.name);
+                Debug.Log("[LSA] [CrunchDrives] Reference body changed: " + lastBodyName + " -> " + v.mainBody.name);
                 lastBodyName = v.mainBody.name;
             }
             Vector3d nose = ((Vector3d)v.ReferenceTransform.up).normalized;
@@ -1456,7 +1456,7 @@ namespace CrunchDrives
                 if (windowBody == v.mainBody && windowCommanded > 0)
                     ratio = ((v.orbit.pos - windowStartPos).magnitude / windowCommanded).ToString("F3");
                 Debug.Log(string.Format(
-                    "[CrunchDrive] t={0:F1}s leg={1} dir={2} commanded={3:E3}m achieved/commanded={4} offAxis={5:F2}deg body={6} realSpeed={7:F0}m/s toTarget={8:E3}m",
+                    "[LSA] [CrunchDrives] t={0:F1}s leg={1} dir={2} commanded={3:E3}m achieved/commanded={4} offAxis={5:F2}deg body={6} realSpeed={7:F0}m/s toTarget={8:E3}m",
                     elapsed, leg, CrunchText.DirShort(crunchBackwards),
                     windowCommanded, ratio, offAxis, v.mainBody.name, v.obt_velocity.magnitude, lastToTarget));
                 ResetWindow(v);
@@ -1505,7 +1505,7 @@ namespace CrunchDrives
             Status = CrunchText.StatusIdleBecause(reason);
             if (wasCrunching)
             {
-                Debug.Log(string.Format("[CrunchDrive] Crunch summary: {0:E3} m commanded", traveled));
+                Debug.Log(string.Format("[LSA] [CrunchDrives] Crunch summary: {0:E3} m commanded", traveled));
                 Post(CrunchText.MsgEnded(reason));
                 if (arrived && ended != null && (CrunchTuning.CaptureAssist || CrunchTuning.SasRetrograde))
                 {
@@ -1527,7 +1527,7 @@ namespace CrunchDrives
         }
         static void Post(string msg)
         {
-            Debug.Log("[CrunchDrive] " + msg);
+            Debug.Log("[LSA] [CrunchDrives] " + msg);
             ScreenMessages.PostScreenMessage(CrunchText.ScreenPrefix + msg, 4f, ScreenMessageStyle.UPPER_CENTER);
         }
     }

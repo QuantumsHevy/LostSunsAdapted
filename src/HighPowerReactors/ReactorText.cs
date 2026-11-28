@@ -24,11 +24,11 @@ namespace HighPowerReactors
         public const string InfoOutputs = "\n- <b>Outputs:</b>";
         public static string InfoResource(string name, double perSecond) { return string.Format("\n-- {0}: {1} u/s", name, perSecond.ToString("0.##########")); }
         // Debug Logs
-        public const string LogBootstrapPassed = "[LSA][HighPowerReactors] Bootstrap passed";
-        public const string LogNoGlowMaterial = "[LSA][HighPowerReactors] No emissives found on part";
+        public const string LogBootstrapPassed = "[LSA] [HighPowerReactors] Bootstrap passed";
+        public const string LogNoGlowMaterial = "[LSA] [HighPowerReactors] No emissives found on part";
         public static string LogGlowMaterials(int materials, int renderers)
         {
-            return string.Format("[LSA][HighPowerReactors] {0} material(s) of {1} included renderer(s) found on part", materials, renderers);
+            return string.Format("[LSA] [HighPowerReactors] {0} material(s) of {1} included renderer(s) found on part", materials, renderers);
         }
     }
 }

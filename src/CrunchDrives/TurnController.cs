@@ -36,7 +36,7 @@ namespace CrunchDrives
             axisUp = (Vector3d)rt.up;
             v.OnFlyByWire += Fly;
             Running = true;
-            Debug.Log("[CrunchDrive] Attitude controller started; calibrating.");
+            Debug.Log("[LSA] [CrunchDrives] Attitude controller started; calibrating.");
         }
         public void End()
         {
@@ -108,7 +108,7 @@ namespace CrunchDrives
             bool ok = Sane(alphaPitch) && Sane(alphaYaw)
                       && System.Math.Abs(alphaPitch) >= CrunchTuning.TurnMinAuthority
                       && System.Math.Abs(alphaYaw) >= CrunchTuning.TurnMinAuthority;
-            Debug.Log(string.Format("[CrunchDrive] Attitude controller calibration: pitch {0:E2}, yaw {1:E2}, roll {2:E2} rad/s^2 per full input{3}.",
+            Debug.Log(string.Format("[LSA] [CrunchDrives] Attitude controller calibration: pitch {0:E2}, yaw {1:E2}, roll {2:E2} rad/s^2 per full input{3}.",
                 alphaPitch, alphaYaw, alphaRoll, ok ? "" : " (not enough torque)"));
             if (!ok)
             {
